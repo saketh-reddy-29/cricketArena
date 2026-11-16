@@ -19,7 +19,7 @@ export function Lighting({ night = true }: { night?: boolean }) {
         <ambientLight intensity={0.55} color="#fff6e8" />
         <directionalLight
           position={[60, 90, 40]} intensity={2.6} color="#fff3d6" castShadow
-          shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-bias={-0.0004} shadow-normalBias={0.04}
+          shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-bias={-0.0004} shadow-normalBias={0.04}
           shadow-camera-near={20} shadow-camera-far={260}
           shadow-camera-left={-34} shadow-camera-right={34} shadow-camera-top={34} shadow-camera-bottom={-34}
         />
