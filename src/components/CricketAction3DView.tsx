@@ -1,5 +1,6 @@
 import React, { Suspense, useMemo, useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
+import { PerspectiveCamera, useGLTF, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import { Stadium, StadiumScoreboardData } from '../3d/Stadium';
 import { Lighting } from '../3d/Lighting';
@@ -18,6 +19,10 @@ import { Camera, Eye, Zap, Crosshair, Maximize2, Minimize2 } from 'lucide-react'
 
 const PADDED_MODEL = '/models/cricket-arena/cartoon_sports_character_3d_model.glb';
 const LIGHT_MODEL = '/models/cricket-arena/cartoon_character_3d_model.glb';
+
+// Begin loading both shared player assets before the match scene mounts.
+useGLTF.preload(PADDED_MODEL);
+useGLTF.preload(LIGHT_MODEL);
 
 type Point = { x: number; y: number };
 type ArenaStage = 'IDLE' | 'BOWLER_RELEASE' | 'PITCH_BOUNCE' | 'BAT_CONTACT' | 'BALL_TRAVEL' | 'OUTCOME';
@@ -136,6 +141,137 @@ function actionForFielder(fielder: ArenaPlayer, actionStr: string): CricketArena
   if (normalized.includes('CHASE') || normalized.includes('INTERCEPT')) return 'sprint';
   if (normalized.includes('RUN')) return 'run';
   return 'ready';
+}
+
+type CharacterSlotProps = React.ComponentProps<typeof CharacterInstance>;
+
+function CharacterLoadingPlaceholder({
+  position,
+  yaw,
+  kitRole = 'fielder',
+  team,
+  format,
+  kitVariant = 'home',
+  hasBat = false,
+}: Pick<CharacterSlotProps, 'position' | 'yaw' | 'kitRole' | 'team' | 'format' | 'kitVariant' | 'hasBat'>) {
+  const kit = team ? resolveKit(team, format, kitVariant) : null;
+  const shirt = kitRole === 'umpire' ? '#f8fafc' : kit?.slots.jersey ?? '#e2e8f0';
+  const trousers = kitRole === 'umpire' ? '#111827' : kit?.slots.pants ?? '#334155';
+  return (
+    <group position={[position[0], 0, position[1]]} rotation={[0, yaw, 0]}>
+      <mesh position={[0, 1.12, 0]} castShadow>
+        <capsuleGeometry args={[0.22, 0.62, 5, 10]} />
+        <meshStandardMaterial color={shirt} roughness={0.82} />
+      </mesh>
+      <mesh position={[0, 1.78, 0]} castShadow>
+        <sphereGeometry args={[0.16, 12, 10]} />
+        <meshStandardMaterial color="#c98f6b" roughness={0.88} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <group key={side}>
+          <mesh position={[side * 0.12, 0.48, 0]} castShadow>
+            <capsuleGeometry args={[0.085, 0.56, 4, 8]} />
+            <meshStandardMaterial color={trousers} roughness={0.9} />
+          </mesh>
+          <mesh position={[side * 0.12, 0.12, 0.035]} castShadow>
+            <boxGeometry args={[0.17, 0.11, 0.29]} />
+            <meshStandardMaterial color="#f1f5f9" roughness={0.75} />
+          </mesh>
+          <mesh position={[side * 0.29, 1.19, 0]} rotation={[0, 0, side * -0.18]} castShadow>
+            <capsuleGeometry args={[0.065, 0.43, 4, 8]} />
+            <meshStandardMaterial color={shirt} roughness={0.82} />
+          </mesh>
+        </group>
+      ))}
+      {kitRole === 'umpire' && (
+        <mesh position={[0, 1.96, 0]} castShadow>
+          <cylinderGeometry args={[0.19, 0.19, 0.035, 20]} />
+          <meshStandardMaterial color="#f8fafc" roughness={0.8} />
+        </mesh>
+      )}
+      {hasBat && (
+        <mesh position={[0.34, 0.92, 0.08]} rotation={[0.08, 0, -0.18]} castShadow>
+          <boxGeometry args={[0.1, 0.88, 0.055]} />
+          <meshStandardMaterial color="#d7a45a" roughness={0.78} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+class CharacterLoadBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.warn('[CRIC ARENA] Character asset failed; preserving its player slot.', error);
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+function CharacterSlot(props: CharacterSlotProps) {
+  const fallback = (
+    <CharacterLoadingPlaceholder
+      position={props.position}
+      yaw={props.yaw}
+      kitRole={props.kitRole}
+      team={props.team}
+      format={props.format}
+      kitVariant={props.kitVariant}
+      hasBat={props.hasBat}
+    />
+  );
+  return (
+    <CharacterLoadBoundary fallback={fallback}>
+      <Suspense fallback={fallback}>
+        <CharacterSlot {...props} />
+      </Suspense>
+    </CharacterLoadBoundary>
+  );
+}
+
+function SceneLoadingFallback() {
+  return (
+    <>
+      <color attach="background" args={['#8db3c9']} />
+      <PerspectiveCamera makeDefault position={[0, 48, 66]} fov={52} />
+      <hemisphereLight args={['#e5f2ff', '#356b3e', 1.25]} />
+      <ambientLight intensity={0.8} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]}>
+        <circleGeometry args={[74, 72]} />
+        <meshStandardMaterial color="#3b8f49" roughness={0.98} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <planeGeometry args={[3.05, 20.12]} />
+        <meshStandardMaterial color="#c7b38a" roughness={0.96} />
+      </mesh>
+      {[-0.12, 0, 0.12].map((x) => (
+        <mesh key={x} position={[x, 0.48, -10.1]}>
+          <cylinderGeometry args={[0.035, 0.035, 0.96, 8]} />
+          <meshStandardMaterial color="#f8fafc" />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+function ModelLoadingOverlay() {
+  const { active, progress } = useProgress();
+  if (!active) return null;
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/15 bg-slate-950/80 px-3 py-1.5 text-[10px] font-bold tracking-wide text-white/90 shadow-xl backdrop-blur">
+      Preparing 3D match assets · {Math.round(progress)}%
+    </div>
+  );
 }
 
 function StadiumScene({
@@ -398,7 +534,7 @@ function StadiumScene({
 
       {/* Striker Batsman */}
       {striker && sVisible && (
-        <CharacterInstance
+        <CharacterSlot
           modelUrl={PADDED_MODEL}
           position={sPos}
           yaw={sYaw}
@@ -408,6 +544,7 @@ function StadiumScene({
           batBladeRef={bladeRef}
           action={sAct}
           progress={localProgress}
+          animationFps={30}
           hasBat={true}
           isLeftHanded={isLeftHanded}
           ballPos={ball3DPos}
@@ -421,7 +558,7 @@ function StadiumScene({
 
       {/* Non-Striker Batsman */}
       {nonStriker && (
-        <CharacterInstance
+        <CharacterSlot
           modelUrl={PADDED_MODEL}
           position={nPos}
           yaw={nYaw}
@@ -430,6 +567,7 @@ function StadiumScene({
           heightScale={heightScale(heightCmFor(nonStriker?.name, nonStriker?.role))}
           action={nAct}
           progress={localProgress}
+          animationFps={30}
           hasBat={true}
           showDebugSkeleton={showDebugSkeleton}
           team={battingTeamName}
@@ -441,12 +579,13 @@ function StadiumScene({
 
       {/* Incoming batter walking out after a wicket */}
       {incoming && (
-        <CharacterInstance
+        <CharacterSlot
           modelUrl={PADDED_MODEL}
           position={incoming.pos}
           yaw={incoming.yaw}
           action={incoming.action as CricketArenaAction}
           progress={0}
+          animationFps={24}
           hasBat={true}
           showDebugSkeleton={showDebugSkeleton}
           team={battingTeamName}
@@ -498,7 +637,7 @@ function StadiumScene({
           : Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1]);
 
         return (
-          <CharacterInstance
+          <CharacterSlot
             key={fielder.id}
             modelUrl={isKeeper ? PADDED_MODEL : LIGHT_MODEL}
             position={location}
@@ -509,6 +648,7 @@ function StadiumScene({
             isLeftHanded={isBowler && bowling.leftArm}
             action={action}
             progress={isBowler ? Math.min(1, progress / 45) : localProgress}
+            animationFps={isBowler ? (stage === 'BOWLER_RELEASE' || stage === 'PITCH_BOUNCE' ? 30 : 12) : active ? 30 : isKeeper ? 18 : 12}
             ballPos={ball3DPos}
             showDebugSkeleton={showDebugSkeleton}
             team={bowlingTeamName}
@@ -520,7 +660,7 @@ function StadiumScene({
       })}
 
       {/* Bowler-end official: neutral white umpire kit + head-rig wide-brim hat. */}
-      <CharacterInstance
+      <CharacterSlot
         modelUrl={LIGHT_MODEL}
         position={[0, -11.35]}
         yaw={0}
@@ -536,6 +676,7 @@ function StadiumScene({
             : 'idle'
         }
         progress={localProgress}
+        animationFps={stage === 'OUTCOME' ? 24 : 12}
         team={bowlingTeamName}
         format={matchFormat}
         kitVariant={kitVariants.bowling}
@@ -543,7 +684,7 @@ function StadiumScene({
       />
 
       {/* Square-leg official: mirrors to the striker's leg side for left-handed batters. */}
-      <CharacterInstance
+      <CharacterSlot
         modelUrl={LIGHT_MODEL}
         position={squareLegUmpireWorld}
         yaw={squareLegUmpireYaw}
@@ -555,6 +696,7 @@ function StadiumScene({
             : 'idle'
         }
         progress={localProgress}
+        animationFps={stage === 'OUTCOME' ? 24 : 12}
         team={bowlingTeamName}
         format={matchFormat}
         kitVariant={kitVariants.bowling}
@@ -617,15 +759,16 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
     >
       <Canvas
         shadows={false}
-        dpr={[0.65, 0.95]}
+        dpr={[0.7, 1.05]}
+        performance={{ min: 0.65, max: 1, debounce: 500 }}
         gl={{
           antialias: false,
           powerPreference: 'high-performance',
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.15,
+          toneMappingExposure: 1.2,
         }}
       >
-        <Suspense fallback={null}>
+        <Suspense fallback={<SceneLoadingFallback />}>
           <StadiumScene
             isDay={isDay}
             props={props}
@@ -634,6 +777,7 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
           />
         </Suspense>
       </Canvas>
+      <ModelLoadingOverlay />
 
       {/* Top Left Status Badge */}
       <div className="pointer-events-none absolute left-3 top-3 flex max-w-[min(70%,520px)] flex-col gap-1">
