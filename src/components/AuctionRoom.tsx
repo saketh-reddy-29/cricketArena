@@ -9,7 +9,7 @@ import { useGameStore, GameState, Franchise, PlayerOwnershipStatus } from '../st
 import confetti from 'canvas-confetti';
 import { cn } from '../lib/utils';
 import { evaluateBid, AuctionState, FranchiseAIState, getBidDelay } from '../lib/auctionAI';
-import JerseyPlayerImage from './JerseyPlayerImage';
+import AuctionPlayer3DStage from './AuctionPlayer3DStage';
 import { getPlayerImage } from '../lib/playerImages';
 import { Player } from '../types/common';
 import { resolveTeamLogoUrl } from '../lib/teamLogos';
@@ -368,11 +368,9 @@ export default function AuctionRoom() {
                     onClick={() => setViewedPlayer(currentPlayer.id)}
                     className="group relative w-56 h-72 rounded-2xl overflow-hidden border-2 border-white/20 bg-gradient-to-b from-[#152C4D] to-[#071426] shadow-2xl cursor-pointer hover:border-[#258BFF] transition-all"
                   >
-                    <JerseyPlayerImage
+                    <AuctionPlayer3DStage
                       player={currentPlayer}
-                      franchiseId={leadingFranchise?.id}
-                      className="w-full h-full group-hover:scale-105 transition-transform duration-500 origin-bottom"
-                      imageClassName="w-full h-full"
+                      team={leadingFranchise?.name || userFranchise?.name || 'India'}
                     />
                     <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#071426] via-[#071426]/70 to-transparent" />
                     
