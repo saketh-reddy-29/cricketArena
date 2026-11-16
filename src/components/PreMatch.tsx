@@ -132,6 +132,21 @@ export default function PreMatch() {
     });
   }, [opponentSquad, pitchType, format, playerFatigue, opponentPreviousXI]);
 
+  const opponentSelectedPlayers = useMemo(
+    () => opponentOptimalSelection.playingXI
+      .map((id) => opponentSquad.find((player) => player.id === id))
+      .filter(Boolean) as Player[],
+    [opponentOptimalSelection, opponentSquad],
+  );
+  const opponentWicketkeepers = opponentSelectedPlayers.filter((player) => player.role === 'Wicketkeeper').length;
+  const opponentBowlingOptions = opponentSelectedPlayers.filter(
+    (player) => player.role === 'Bowler' || player.role === 'All-rounder',
+  ).length;
+  const isOpponentXIValid =
+    opponentOptimalSelection.playingXI.length === 11 &&
+    opponentWicketkeepers >= 1 &&
+    opponentBowlingOptions >= 5;
+
   // Initial Squad Auto-Selection for User
   useEffect(() => {
     if (userSquad.length === 0) return;
@@ -272,6 +287,7 @@ export default function PreMatch() {
   };
 
   const startMatch = () => {
+    if (!isValidXI || !isOpponentXIValid) return;
     if (captainId) {
       setCaptain(userTeam.id, captainId);
     }
@@ -622,7 +638,7 @@ export default function PreMatch() {
               {/* Proceed to Toss Button */}
               <div className="bg-[#10233D] rounded-2xl border border-white/10 p-4 shadow-xl space-y-2">
                 <button
-                  disabled={!isValidXI}
+                  disabled={!isValidXI || !isOpponentXIValid}
                   onClick={proceedToToss}
                   className={cn(
                     "w-full py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg",
@@ -636,6 +652,11 @@ export default function PreMatch() {
                 {!isValidXI && (
                   <p className="text-[10px] text-rose-400 text-center font-medium">
                     Select exactly 11 players including at least 1 Wicketkeeper and 5 Bowlers.
+                  </p>
+                )}
+                {isValidXI && !isOpponentXIValid && (
+                  <p className="text-[10px] text-amber-300 text-center font-medium">
+                    The opponent must also have a complete XI, including a wicketkeeper and five bowling options. Complete the auction before starting.
                   </p>
                 )}
               </div>
