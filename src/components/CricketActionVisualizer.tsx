@@ -500,12 +500,16 @@ export default function CricketActionVisualizer({
     (globalThis as { __arenaGateLog?: unknown[] }).__arenaGateLog?.push({ t: performance.now(), e: `transition-start:${kind}:${runs}:${Math.round(duration)}` });
     let t0 = performance.now();
     let last = t0;
+    let lastPublishedAt = 0;
     const frame = (now: number) => {
       if (token !== transitionTokenRef.current) return;
       if (isPausedRef.current) { t0 += now - last; last = now; transitionRafRef.current = requestAnimationFrame(frame); return; }
       last = now;
       const p = Math.min(1, (now - t0) / duration);
-      setBatterTransition({ kind, progress: p, runs });
+      if (now - lastPublishedAt >= 1000 / 30 || p >= 1) {
+        setBatterTransition({ kind, progress: p, runs });
+        lastPublishedAt = now;
+      }
       if (p < 1) {
         transitionRafRef.current = requestAnimationFrame(frame);
       } else {
@@ -774,11 +778,14 @@ export default function CricketActionVisualizer({
     const from = interception.interceptPoint;
     const bowlerHome = { x: 300, y: 410 };
     const distToBowler = Math.hypot(from.x - bowlerHome.x, from.y - bowlerHome.y);
-    const baseMs = Math.min(850, Math.max(320, distToBowler * 2.0));
+    const baseMs = Math.min(2400, Math.max(550, distToBowler * 5.5));
     const speedMult = speed === 1 ? 1 : speed === 1.5 ? 1.4 : 2.2;
     const duration = baseMs / speedMult;
 
-    const t0 = performance.now();
+    let startTime = performance.now();
+    let lastFrameTime = startTime;
+    let lastPublishedAt = 0;
+    let arrivedAt: number | null = null;
     setBallVisible(true);
     setPlaybackStage('OUTCOME');
     onBallLifecycleChangeRef.current?.(
@@ -788,21 +795,36 @@ export default function CricketActionVisualizer({
 
     const frame = (now: number) => {
       if (isPausedRef.current) {
+        const pausedFor = now - lastFrameTime;
+        startTime += pausedFor;
+        if (arrivedAt !== null) arrivedAt += pausedFor;
+        lastFrameTime = now;
         fieldMoveAnimFrameRef.current = requestAnimationFrame(frame);
         return;
       }
-      const t = Math.min(1, (now - t0) / duration);
+      lastFrameTime = now;
+      const t = Math.min(1, (now - startTime) / duration);
       const eased = t * t * (3 - 2 * t); // smoothstep
       const bx = from.x + (bowlerHome.x - from.x) * eased;
       const by = from.y + (bowlerHome.y - from.y) * eased;
-      setBallPos({ x: bx, y: by });
-      setBallScale(0.7);
-      setBallTrail((prev) => [...prev.slice(-5), { x: bx, y: by }]);
+
+      if (now - lastPublishedAt >= 1000 / 30 || t >= 1) {
+        setBallPos({ x: bx, y: by });
+        setBallScale(0.7);
+        setBallTrail((prev) => [...prev.slice(-5), { x: bx, y: by }]);
+        lastPublishedAt = now;
+      }
 
       if (t < 1) {
         fieldMoveAnimFrameRef.current = requestAnimationFrame(frame);
+      } else if (arrivedAt === null) {
+        arrivedAt = now;
+        setBallPos(bowlerHome);
+        fieldMoveAnimFrameRef.current = requestAnimationFrame(frame);
+      } else if (now - arrivedAt < 400) {
+        fieldMoveAnimFrameRef.current = requestAnimationFrame(frame);
       } else {
-        // Ball is back with the bowler: retrieval complete, next delivery may now be released.
+        setBallPos(bowlerHome);
         setActiveFielderAction(null);
         onBallLifecycleChangeRef.current?.('BALL_READY', interception);
         (globalThis as { __arenaGateLog?: unknown[] }).__arenaGateLog?.push({ t: performance.now(), e: 'retrieval-end' });
@@ -838,11 +860,18 @@ export default function CricketActionVisualizer({
       gateRef.current?.arm();
     }
     const path = delivery.ballPath;
-    const baseDuration = delivery.totalRuns === 6 ? 1500 : delivery.totalRuns === 4 ? 1300 : delivery.totalRuns > 0 ? 1150 : 950;
+    const preContactDistance =
+      Math.hypot(path.bounce.x - path.start.x, path.bounce.y - path.start.y) +
+      Math.hypot(path.contact.x - path.bounce.x, path.contact.y - path.bounce.y);
+    const ballTravelDistance = Math.hypot(path.target.x - path.contact.x, path.target.y - path.contact.y);
+    // Longer boundary / aerial paths take proportionally longer on screen.
+    const baseDuration = Math.min(4300, Math.max(1900, 1900 + ballTravelDistance * 4.2 + preContactDistance * 0.35));
     const speedMult = speed === 1 ? 1 : speed === 1.5 ? 0.7 : 0.45;
     const totalDuration = baseDuration * speedMult;
 
     let startTime: number | null = null;
+    let pausedAt: number | null = null;
+    let lastPublishedAt = 0;
     let contactTriggered = false;
 
     setBallVisible(true);
@@ -860,17 +889,27 @@ export default function CricketActionVisualizer({
 
     const step = (timestamp: number) => {
       if (isPausedRef.current) {
+        if (pausedAt === null) pausedAt = timestamp;
         animFrameRef.current = requestAnimationFrame(step);
         return;
       }
+      if (pausedAt !== null) {
+        if (startTime !== null) startTime += timestamp - pausedAt;
+        pausedAt = null;
+      }
 
-      if (!startTime) {
+      if (startTime === null) {
         startTime = timestamp - (resumeFromProgress * totalDuration);
       }
 
       const elapsed = timestamp - startTime;
       const progress = Math.min(1, elapsed / totalDuration);
       pausedProgressRef.current = progress;
+      if (timestamp - lastPublishedAt < 1000 / 30 && progress < 1) {
+        animFrameRef.current = requestAnimationFrame(step);
+        return;
+      }
+      lastPublishedAt = timestamp;
       setAnimProgress(Math.round(progress * 100));
 
       let curX = path.start.x;

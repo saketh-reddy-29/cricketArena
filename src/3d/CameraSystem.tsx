@@ -70,7 +70,14 @@ export function CameraSystem({
       }
       case 'BROADCAST':
         pos.set(-9, 17, -34); tgt.set(0, 0.8, 4); fov = 44;
-        if (isBallTravelling && ballPos) tgt.set(ballPos[0] * 0.7, ballPos[1] * 0.5, ballPos[2] * 0.7);
+        if (focus) {
+          // Tighten the TV shot on the dismissed batter leaving and replacement entering.
+          pos.set(focus[0] - 7, 8.5, focus[1] + 13);
+          tgt.set(focus[0], 1.0, focus[1]);
+          fov = 40;
+        } else if (isBallTravelling && ballPos) {
+          tgt.set(ballPos[0] * 0.7, Math.max(0.8, ballPos[1] * 0.5), ballPos[2] * 0.7);
+        }
         break;
       case 'BOWLER_CAM':
         pos.set(-1.8, 4.3, -22.5); tgt.set(strikerPos[0], 1.1, strikerPos[1]); fov = 46;

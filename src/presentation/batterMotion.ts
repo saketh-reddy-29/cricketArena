@@ -58,18 +58,30 @@ export function computeBatterMotion(
     m.nAct = 'sprintBat';
   } else {
     const t = clamp01(tr.progress);
-    const p1 = clamp01(t / 0.88);
-    m.sPos = [lerp(strikerWorld[0], PAVILION_EXIT[0], p1), lerp(strikerWorld[1], PAVILION_EXIT[1], p1)];
+    // First 56%: the dismissed batter clearly walks off alone.
+    // Remaining 44%: the replacement batter enters from the pavilion.
+    const exitEnd = 0.56;
+    const exitProgress = clamp01(t / exitEnd);
+    m.sPos = [
+      lerp(strikerWorld[0], PAVILION_EXIT[0], exitProgress),
+      lerp(strikerWorld[1], PAVILION_EXIT[1], exitProgress),
+    ];
     m.sYaw = Math.atan2(PAVILION_EXIT[0] - strikerWorld[0], PAVILION_EXIT[1] - strikerWorld[1]);
     m.sAct = t < 0.1 ? 'defeat' : 'jog';
-    m.sVisible = t < 0.93;
-    if (t > 0.1) {
-      const p2 = clamp01((t - 0.1) / 0.9);
-      const e = p2 * p2 * (3 - 2 * p2);
+    m.sVisible = t < exitEnd;
+
+    if (t >= exitEnd) {
+      const entryProgress = clamp01((t - exitEnd) / (1 - exitEnd));
+      const easedEntry = entryProgress * entryProgress * (3 - 2 * entryProgress);
       m.incoming = {
-        pos: [lerp(PAVILION_EXIT[0], strikerWorld[0], e), lerp(PAVILION_EXIT[1], strikerWorld[1], e)],
-        yaw: p2 < 1 ? Math.atan2(strikerWorld[0] - PAVILION_EXIT[0], strikerWorld[1] - PAVILION_EXIT[1]) : Math.PI,
-        action: p2 < 1 ? 'jog' : 'batIdle',
+        pos: [
+          lerp(PAVILION_EXIT[0], strikerWorld[0], easedEntry),
+          lerp(PAVILION_EXIT[1], strikerWorld[1], easedEntry),
+        ],
+        yaw: entryProgress < 1
+          ? Math.atan2(strikerWorld[0] - PAVILION_EXIT[0], strikerWorld[1] - PAVILION_EXIT[1])
+          : Math.PI,
+        action: entryProgress < 1 ? 'jog' : 'batIdle',
       };
     }
   }

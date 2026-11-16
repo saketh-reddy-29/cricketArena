@@ -14,7 +14,7 @@ import { BallVisual } from '../physics/BallVisual';
 import { soundFX } from '../3d/CricketSoundFX';
 import { CricketArenaAction } from '../lib/cricketArenaAnimations';
 import type { DetailedBowlingPlan } from '../engine/ai/BowlingPlanEngine';
-import { Camera, Eye, Zap, Crosshair } from 'lucide-react';
+import { Camera, Eye, Zap, Crosshair, Maximize2, Minimize2 } from 'lucide-react';
 
 const PADDED_MODEL = '/models/cricket-arena/cartoon_sports_character_3d_model.glb';
 const LIGHT_MODEL = '/models/cricket-arena/cartoon_character_3d_model.glb';
@@ -512,48 +512,6 @@ function StadiumScene({
         );
       })}
 
-      {/* Bowler-end umpire: calls wickets, no-balls, wides and sixes. */}
-      <CharacterInstance
-        modelUrl={LIGHT_MODEL}
-        position={[0, -11.35]}
-        yaw={0}
-        action={
-          stage === 'OUTCOME' && delivery?.wicket && delivery.wicketType !== 'Run Out' && delivery.wicketType !== 'Stumped'
-            ? 'umpireOut'
-            : stage === 'OUTCOME' && delivery?.extraType === 'Wide'
-            ? 'umpireWide'
-            : stage === 'OUTCOME' && delivery?.extraType === 'No Ball'
-            ? 'umpireNoBall'
-            : stage === 'OUTCOME' && delivery?.totalRuns === 6
-            ? 'umpireSix'
-            : 'idle'
-        }
-        progress={localProgress}
-        team={bowlingTeamName}
-        format={matchFormat}
-        kitVariant={kitVariants.bowling}
-        kitRole="umpire"
-      />
-
-      {/* Square-leg umpire: gives the boundary-four signal and assists run-out decisions. */}
-      <CharacterInstance
-        modelUrl={LIGHT_MODEL}
-        position={[8.5, 0.8]}
-        yaw={-Math.PI / 2}
-        action={
-          stage === 'OUTCOME' && delivery?.wicket && (delivery.wicketType === 'Run Out' || delivery.wicketType === 'Stumped')
-            ? 'umpireOut'
-            : stage === 'OUTCOME' && delivery?.totalRuns === 4
-            ? 'umpireFour'
-            : 'idle'
-        }
-        progress={localProgress}
-        team={bowlingTeamName}
-        format={matchFormat}
-        kitVariant={kitVariants.bowling}
-        kitRole="umpire"
-      />
-
       {/* Physical 3D Cricket Ball */}
       <BallVisual
         position={ball3DPos}
@@ -571,18 +529,39 @@ function StadiumScene({
 }
 
 export default function CricketAction3DView(props: CricketAction3DViewProps) {
-  const [cameraMode, setCameraMode] = useState<CameraViewMode>(props.initialCameraMode ?? 'EA_BATTER');
+  const [cameraMode, setCameraMode] = useState<CameraViewMode>(props.initialCameraMode ?? 'BROADCAST');
+  const sceneRootRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const syncFullscreen = () => setIsFullscreen(document.fullscreenElement === sceneRootRef.current);
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
+
+  const toggleFullscreen = () => {
+    const root = sceneRootRef.current;
+    if (!root) return;
+    if (document.fullscreenElement === root) {
+      void document.exitFullscreen().catch(() => setIsFullscreen(false));
+    } else if (root.requestFullscreen) {
+      void root.requestFullscreen().catch(() => setIsFullscreen(false));
+    }
+  };
   const [showDebugSkeleton, setShowDebugSkeleton] = useState(false);
   const [showKitPreview, setShowKitPreview] = useState(false);
   const [isDay, setIsDay] = useState(props.initialDay ?? false);
 
   return (
-    <div className="absolute inset-0 overflow-hidden rounded-xl bg-[#080e1e] select-none">
+    <div
+      ref={sceneRootRef}
+      className={`${isFullscreen ? 'fixed inset-0 z-[9999] h-screen w-screen rounded-none' : 'absolute inset-0 rounded-xl'} overflow-hidden bg-[#080e1e] select-none`}
+    >
       <Canvas
-        shadows
-        dpr={[1, 1.75]}
+        shadows={false}
+        dpr={[0.7, 1.1]}
         gl={{
-          antialias: true,
+          antialias: false,
           powerPreference: 'high-performance',
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.15,
@@ -659,6 +638,19 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
           className={`px-2 py-1 rounded-xl text-[9px] font-bold border backdrop-blur-md ${showKitPreview ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40' : 'bg-slate-950/85 text-slate-300 border-white/10 hover:text-white'}`}
         >
           Kits
+        </button>
+
+        {/* Fullscreen match view */}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? 'Exit fullscreen match view' : 'Enter fullscreen match view'}
+          aria-pressed={isFullscreen}
+          title={isFullscreen ? 'Exit fullscreen' : 'Watch the match fullscreen'}
+          className="flex items-center gap-1 rounded-xl border border-white/10 bg-slate-950/85 px-2 py-1 text-[9px] font-bold text-slate-200 backdrop-blur-md transition-colors hover:border-cyan-400/40 hover:text-white"
+        >
+          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          <span>{isFullscreen ? 'Exit' : 'Full'}</span>
         </button>
 
         {/* Debug Skeleton & Collision Capsule Toggle */}

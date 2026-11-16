@@ -61,6 +61,7 @@ export function CharacterInstance({
   const solverState = useRef<Record<string, unknown>>({});
   const smoothedPose = useRef<CricketArenaPose | null>(null);
   const previousAction = useRef<CricketArenaAction>(action);
+  const poseUpdateAccumulator = useRef(0);
 
   // Debug Skeleton Line Ref
   const debugLinesRef = useRef<THREE.LineSegments>(null);
@@ -137,6 +138,11 @@ export function CharacterInstance({
     const modelWrapper = modelWrapperRef.current;
     if (!root || !modelWrapper) return;
 
+    poseUpdateAccumulator.current += Math.min(delta, 0.05);
+    if (poseUpdateAccumulator.current < 1 / 30) return;
+    const frameDelta = Math.min(poseUpdateAccumulator.current, 0.05);
+    poseUpdateAccumulator.current = 0;
+
     const clock = state.clock.elapsedTime;
     let targetPose = getCricketArenaPose(action, progress, clock, isLeftHanded);
 
@@ -159,7 +165,7 @@ export function CharacterInstance({
     // fielding and umpire poses. A slightly faster blend is used when the action
     // changes; continuous motion within an action remains responsive.
     const actionChanged = previousAction.current !== action;
-    const blend = 1 - Math.exp(-delta * (actionChanged ? 18 : 28));
+    const blend = 1 - Math.exp(-frameDelta * (actionChanged ? 18 : 28));
     if (!smoothedPose.current) {
       smoothedPose.current = { ...targetPose };
     } else {
@@ -191,8 +197,7 @@ export function CharacterInstance({
     modelWrapper.rotation.set(0, Math.PI / 2 - (pose.yw || 0) * Math.PI / 2, -(pose.rot || 0));
 
     // Solve kinematics and anatomical collision constraints
-    const dt = Math.min(delta, 0.05);
-    const output = model.rig.solve(pose, solverState.current, dt);
+    const output = model.rig.solve(pose, solverState.current, frameDelta);
 
     // Apply solved bone quaternions
     const bones = model.description;
