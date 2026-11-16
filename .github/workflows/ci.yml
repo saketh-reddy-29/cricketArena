@@ -46,7 +46,7 @@ jobs:
             exit 0
           fi
 
-          changed_file_errors="$(grep -E 'src/(characters/(CharacterInstance|kitMaterial|teamKits)\\.tsx?|components/(CricketAction3DView|CricketActionVisualizer)\\.tsx|lib/cricketArenaAnimations\\.ts|tests/(cricketArenaAnimations|teamKits)\\.test\\.ts)' /tmp/tsc.log || true)"
+          changed_file_errors="$(grep -E 'src/(characters/(CharacterInstance|kitMaterial|teamKits)\.tsx?|components/(CricketAction3DView|CricketActionVisualizer)\.tsx|lib/cricketArenaAnimations\.ts|tests/(cricketArenaAnimations|teamKits)\.test\.ts)' /tmp/tsc.log || true)"
           if [ -n "$changed_file_errors" ]; then
             echo "$changed_file_errors"
             echo "::error::TypeScript reported errors in files changed by this PR."
