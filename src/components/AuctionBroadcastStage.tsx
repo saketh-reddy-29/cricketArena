@@ -337,7 +337,7 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
             modelUrl={AUCTION_CHARACTER_MODEL}
             position={[onLeft ? -14.05 : 14.05, z]}
             yaw={onLeft ? 0 : Math.PI}
-            action={activeBidder ? 'handsUp' : 'idle'}
+            action={activeBidder ? 'auctionBid' : 'auctionSit'}
             progress={activeBidder ? 0.46 : 0.12}
             team={team.name}
             format="T20"
@@ -352,7 +352,7 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
         modelUrl={AUCTION_CHARACTER_MODEL}
         position={[0, 2.05]}
         yaw={Math.PI / 2}
-        action={phase === 'sold' ? 'victory' : 'handsUp'}
+        action={phase === 'sold' ? 'victory' : 'auctioneerCall'}
         progress={phase === 'sold' ? 0.45 : 0.34}
         heightScale={0.92}
         animationFps={24}
