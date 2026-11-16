@@ -32,4 +32,16 @@ describe('cricket arena rigged actions', () => {
     expect(wide.rhy).toBeCloseTo(1.36);
     expect(noBall.rhy).toBeCloseTo(1.4);
   });
+
+  it('gives yorker, bouncer, slower-ball and swing bowling distinct motion', () => {
+    const yorker = getCricketArenaPose('bowl_yorker', 0.7, 0);
+    const bouncer = getCricketArenaPose('bowl_bouncer', 0.7, 0);
+    const slower = getCricketArenaPose('bowl_slower', 0.2, 0);
+    const fast = getCricketArenaPose('bowl_fast', 0.2, 0);
+    const swing = getCricketArenaPose('bowl_swing', 0.7, 0);
+
+    expect(bouncer.rhy).toBeGreaterThan(yorker.rhy);
+    expect(slower.lean).toBeLessThan(fast.lean);
+    expect(Math.abs(swing.tw ?? 0)).toBeGreaterThan(0.05);
+  });
 });
