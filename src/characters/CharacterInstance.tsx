@@ -100,7 +100,8 @@ export function CharacterInstance({
 
     group.add(handle, grip, blade, spine);
     // Keep the wooden blade / handle proportioned as one player-scale prop.
-    group.scale.setScalar(0.92);
+    // Keep the bat at realistic player scale: a full-size blade looked taller than the rig on this model.
+    group.scale.setScalar(0.72);
     return group;
   }, []);
 
