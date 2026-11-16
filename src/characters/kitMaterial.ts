@@ -246,8 +246,8 @@ export function createKitCharacter(model: CricketRigModel, batParts?: Partial<Re
       // A separate, light-weight wide-brim official hat. It is attached to the
       // same head bone as the batter helmet and is toggled by the kit role.
       const umpireHat = new THREE.Group();
-      const hatMat = new THREE.MeshStandardMaterial({ color: 0x172033, roughness: 0.78 });
-      const bandMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.58 });
+      const hatMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.78 });
+      const bandMat = new THREE.MeshStandardMaterial({ color: 0x172033, roughness: 0.58 });
       const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.018, 32), hatMat);
       brim.position.y = 0.155;
       const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.112, 0.13, 24), hatMat);
