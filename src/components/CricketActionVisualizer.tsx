@@ -1484,6 +1484,7 @@ export default function CricketActionVisualizer({
                     bowlerBalls={bowlerStats ? bowlerStats.balls % 6 : undefined}
                     bowlerStyle={bowler?.bowlingStyle}
                     bowlerRole={bowler?.role}
+                    bowlingPlan={userBowlingPlan}
                     bowlerName={bowler?.name}
                     isLeftHanded={Boolean(striker?.battingStyle?.toLowerCase().includes('left'))}
                   />
