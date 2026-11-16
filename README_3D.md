@@ -102,7 +102,7 @@ so a few millimetres of graze can remain; keeper and bowling poses are slightly 
 The current 3D match scene now includes two neutral-kit officials:
 - Bowler-end umpire: wicket, wide, no-ball and six signals.
 - Square-leg umpire: boundary-four signal and run-out / stumping dismissal response.
-- The official kit is white shirt, dark trousers, white shoes and a separate dark wide-brim hat attached to the head rig. It is independent of the batting and bowling team colours.
+- The official kit is white shirt, dark trousers, white shoes and a separate white wide-brim hat with a dark band attached to the head rig. It is independent of the batting and bowling team colours.
 
 The pose library also includes explicit umpire actions for not-out, wide, no-ball and dead-ball situations. Only match outcomes with an authoritative signal currently trigger the relevant visible call; a normal non-wicket delivery is not treated as a formal not-out review decision.
 
