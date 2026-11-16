@@ -1,5 +1,6 @@
 import React, { Suspense, useMemo, useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { Stadium, StadiumScoreboardData } from '../3d/Stadium';
 import { Lighting } from '../3d/Lighting';
@@ -17,6 +18,10 @@ import { Camera, Eye, Zap, Crosshair } from 'lucide-react';
 
 const PADDED_MODEL = '/models/cricket-arena/cartoon_sports_character_3d_model.glb';
 const LIGHT_MODEL = '/models/cricket-arena/cartoon_character_3d_model.glb';
+
+// Warm both shared GLB caches before the first delivery starts.
+useGLTF.preload(PADDED_MODEL);
+useGLTF.preload(LIGHT_MODEL);
 
 type Point = { x: number; y: number };
 type ArenaStage = 'IDLE' | 'BOWLER_RELEASE' | 'PITCH_BOUNCE' | 'BAT_CONTACT' | 'BALL_TRAVEL' | 'OUTCOME';
@@ -390,6 +395,9 @@ function StadiumScene({
           isLeftHanded={isLeftHanded}
           ballPos={ball3DPos}
           showDebugSkeleton={showDebugSkeleton}
+          updateFps={30}
+          trackBall
+          castShadow
           team={battingTeamName}
           format={matchFormat}
           kitVariant={kitVariants.batting}
@@ -410,6 +418,9 @@ function StadiumScene({
           progress={localProgress}
           hasBat={true}
           showDebugSkeleton={showDebugSkeleton}
+          updateFps={18}
+          trackBall={false}
+          castShadow={false}
           team={battingTeamName}
           format={matchFormat}
           kitVariant={kitVariants.batting}
@@ -427,6 +438,9 @@ function StadiumScene({
           progress={0}
           hasBat={true}
           showDebugSkeleton={showDebugSkeleton}
+          updateFps={18}
+          trackBall={false}
+          castShadow={false}
           team={battingTeamName}
           format={matchFormat}
           kitVariant={kitVariants.batting}
@@ -473,7 +487,9 @@ function StadiumScene({
           ? 0
           : isKeeper
           ? Math.PI
-          : Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1]);
+          : active
+          ? Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1])
+          : Math.atan2(-location[0], -location[1]);
 
         return (
           <CharacterInstance
@@ -489,6 +505,9 @@ function StadiumScene({
             progress={isBowler ? Math.min(1, progress / 45) : localProgress}
             ballPos={ball3DPos}
             showDebugSkeleton={showDebugSkeleton}
+            updateFps={isBowler || active ? 30 : isKeeper ? 18 : 12}
+            trackBall={isBowler || isKeeper || Boolean(active)}
+            castShadow={isBowler || Boolean(active)}
             team={bowlingTeamName}
             format={matchFormat}
             kitVariant={kitVariants.bowling}
@@ -523,9 +542,9 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
     <div className="absolute inset-0 overflow-hidden rounded-xl bg-[#080e1e] select-none">
       <Canvas
         shadows
-        dpr={[1, 1.75]}
+        dpr={[1, 1.25]}
         gl={{
-          antialias: true,
+          antialias: false,
           powerPreference: 'high-performance',
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.15,
