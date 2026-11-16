@@ -32,26 +32,24 @@ export function Lighting({ night = true }: { night?: boolean }) {
       <hemisphereLight args={[night ? '#9db8ff' : '#cfe6ff', '#1d3a1d', night ? 0.30 : 1.1]} />
       <ambientLight intensity={night ? 0.12 : 0.5} color="#c0d4f5" />
 
-      {/* Two shadow-casting floodlight banks (opposite corners of the ground) */}
-      {[towerPosition(35), towerPosition(215)].map((p, i) => (
-        <directionalLight
-          key={i}
-          position={p}
-          intensity={1.25 * k}
-          color="#fff7e6"
-          castShadow
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
-          shadow-bias={-0.0004}
-          shadow-normalBias={0.04}
-          shadow-camera-near={20}
-          shadow-camera-far={260}
-          shadow-camera-left={-34}
-          shadow-camera-right={34}
-          shadow-camera-top={34}
-          shadow-camera-bottom={-34}
-        />
-      ))}
+      {/* One reduced-resolution shadow bank; the opposite bank is fill-only for integrated GPUs. */}
+      <directionalLight
+        position={towerPosition(35)}
+        intensity={1.35 * k}
+        color="#fff7e6"
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.04}
+        shadow-camera-near={20}
+        shadow-camera-far={260}
+        shadow-camera-left={-34}
+        shadow-camera-right={34}
+        shadow-camera-top={34}
+        shadow-camera-bottom={-34}
+      />
+      <directionalLight position={towerPosition(215)} intensity={0.65 * k} color="#dceaff" />
       {/* Remaining towers fill the ground without shadows (keeps it fast) */}
       {[towerPosition(90), towerPosition(145), towerPosition(270), towerPosition(325)].map((p, i) => (
         <directionalLight key={`f${i}`} position={p} intensity={0.4 * k} color="#f2f7ff" />
