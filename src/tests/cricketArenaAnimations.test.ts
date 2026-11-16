@@ -33,6 +33,20 @@ describe('cricket arena rigged actions', () => {
     expect(noBall.rhy).toBeCloseTo(1.4);
   });
 
+  it('provides seated franchise delegate, raised-bid and auctioneer poses', () => {
+    const seated = getCricketArenaPose('auctionSit', 1, 1.2);
+    const bidding = getCricketArenaPose('auctionBid', 1, 1.2);
+    const auctioneer = getCricketArenaPose('auctioneerCall', 1, 1.2);
+
+    expect(seated.crouch).toBeGreaterThan(0.3);
+    expect(bidding.crouch).toBeGreaterThan(0.3);
+    expect(bidding.rhy).toBeGreaterThan(seated.rhy);
+    expect(auctioneer.rhy).toBeGreaterThan(1.5);
+    expect(Object.values(seated).every(Number.isFinite)).toBe(true);
+    expect(Object.values(bidding).every(Number.isFinite)).toBe(true);
+    expect(Object.values(auctioneer).every(Number.isFinite)).toBe(true);
+  });
+
   it('gives yorker, bouncer, slower-ball and swing bowling distinct motion', () => {
     const yorker = getCricketArenaPose('bowl_yorker', 0.7, 0);
     const bouncer = getCricketArenaPose('bowl_bouncer', 0.7, 0);
