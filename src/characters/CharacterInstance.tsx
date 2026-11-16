@@ -175,7 +175,7 @@ export function CharacterInstance({
       smoothedPose.current = next;
     }
     previousAction.current = action;
-    const pose = smoothedPose.current;
+    const pose = smoothedPose.current!;
 
     // Update root position and rotation
     root.position.set(position[0], 0, position[1]);
