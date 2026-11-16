@@ -135,44 +135,44 @@ function BidPaddle({ team, leading, selected }: { team: DeskTeam; leading: boole
   const paddle = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
     if (!paddle.current) return;
-    const targetRot = leading ? -0.12 : -1.25;
-    const targetY = leading ? 1.55 : 0.85;
-    paddle.current.rotation.x = THREE.MathUtils.damp(paddle.current.rotation.x, targetRot, 9, delta);
-    paddle.current.position.y = THREE.MathUtils.damp(paddle.current.position.y, targetY, 9, delta);
+    const targetRot = leading ? -0.15 : -1.55;
+    const targetY = leading ? 1.05 : 0.74;
+    paddle.current.rotation.x = THREE.MathUtils.damp(paddle.current.rotation.x, targetRot, 10, delta);
+    paddle.current.position.y = THREE.MathUtils.damp(paddle.current.position.y, targetY, 10, delta);
   });
 
   return (
-    <group ref={paddle} position={[0.42, 0.85, 0.35]}>
-      {/* Paddle Handle */}
-      <mesh position={[0, -0.3, 0]}>
-        <cylinderGeometry args={[0.024, 0.026, 0.6, 10]} />
+    <group ref={paddle} position={[0.55, 0.74, 0.2]}>
+      {/* Sleek small paddle handle */}
+      <mesh position={[0, -0.12, 0]}>
+        <cylinderGeometry args={[0.01, 0.012, 0.24, 10]} />
         <meshStandardMaterial color="#8b5a2b" roughness={0.5} />
       </mesh>
-      {/* Paddle Head Board */}
-      <mesh position={[0, 0.22, 0]}>
-        <boxGeometry args={[0.72, 0.84, 0.08]} />
+      {/* Small compact paddle head board */}
+      <mesh position={[0, 0.15, 0]}>
+        <boxGeometry args={[0.24, 0.3, 0.02]} />
         <meshStandardMaterial
           color={leading ? '#f5b82e' : selected ? '#dbeafe' : '#1e293b'}
           emissive={leading ? '#f5b82e' : '#000000'}
-          emissiveIntensity={leading ? 0.35 : 0}
+          emissiveIntensity={leading ? 0.4 : 0}
           roughness={0.4}
         />
       </mesh>
-      {/* Paddle Face with Team Color */}
-      <mesh position={[0, 0.22, 0.045]}>
-        <boxGeometry args={[0.62, 0.74, 0.015]} />
+      {/* Paddle face in team color */}
+      <mesh position={[0, 0.15, 0.011]}>
+        <boxGeometry args={[0.21, 0.27, 0.005]} />
         <meshStandardMaterial
           color={team.color || '#258bff'}
           roughness={0.3}
           metalness={0.2}
           emissive={leading ? team.color || '#258bff' : '#000000'}
-          emissiveIntensity={leading ? 0.2 : 0}
+          emissiveIntensity={leading ? 0.25 : 0}
         />
       </mesh>
       {/* Gold Rim accent when leading */}
       {leading && (
-        <mesh position={[0, 0.22, 0.05]}>
-          <boxGeometry args={[0.66, 0.78, 0.01]} />
+        <mesh position={[0, 0.15, 0.012]}>
+          <boxGeometry args={[0.23, 0.29, 0.003]} />
           <meshBasicMaterial color="#f5b82e" />
         </mesh>
       )}
@@ -192,29 +192,32 @@ function FranchiseDesk({
   leading: boolean;
   selected: boolean;
 }) {
-  // Arrange 10 franchise desks into two clean, tiered rows facing the stage and camera:
-  // Back Row (Row 1): indices 0 to 4 (elevated at y = 0.38m on riser)
-  // Front Row (Row 0): indices 5 to 9 (ground floor at y = 0.0m)
-  const isFrontRow = index >= 5;
-  const col = isFrontRow ? index - 5 : index; // 0, 1, 2, 3, 4
-  const colOffset = col - 2; // -2, -1, 0, 1, 2
+  // Stagger all 10 franchise desks into two tiered rows with an open center aisle:
+  // Back Row (Elevated on Riser at y = 0.42m, z = 4.2m):
+  //   Left Wing:  index 0 (x = -4.3), index 1 (x = -2.8), index 2 (x = -1.3)
+  //   Right Wing: index 5 (x =  1.3), index 6 (x =  2.8), index 7 (x =  4.3)
+  // Front Row (Ground Floor at y = 0.0m, z = 7.0m, nested between back desks):
+  //   Left Wing:  index 3 (x = -3.55), index 4 (x = -2.05)
+  //   Right Wing: index 8 (x =  2.05), index 9 (x =  3.55)
+  // This ensures:
+  // 1. ALL 10 TEAMS ARE FULLY VISIBLE IN FRAME (no clipping at sides).
+  // 2. Center aisle (x = -1.2 to +1.2) is open so Auctioneer is 100% visible.
+  // 3. Front row delegates never block the back row desks!
+  const deskLayout: Record<number, { x: number; y: number; z: number; yaw: number }> = {
+    0: { x: -4.3, y: 0.42, z: 4.3, yaw: 0.14 },
+    1: { x: -2.8, y: 0.42, z: 4.15, yaw: 0.09 },
+    2: { x: -1.3, y: 0.42, z: 4.0, yaw: 0.04 },
+    3: { x: -3.55, y: 0.0, z: 7.1, yaw: 0.11 },
+    4: { x: -2.05, y: 0.0, z: 6.9, yaw: 0.06 },
+    5: { x: 1.3, y: 0.42, z: 4.0, yaw: -0.04 },
+    6: { x: 2.8, y: 0.42, z: 4.15, yaw: -0.09 },
+    7: { x: 4.3, y: 0.42, z: 4.3, yaw: -0.14 },
+    8: { x: 2.05, y: 0.0, z: 6.9, yaw: -0.06 },
+    9: { x: 3.55, y: 0.0, z: 7.1, yaw: -0.11 },
+  };
 
-  // Back row coordinates (on elevated riser at y = 0.38m)
-  const backZ = 3.3 + Math.abs(colOffset) * 0.25;
-  const backX = colOffset * 2.85;
-  const backY = 0.38;
-  const backYaw = colOffset * -0.06;
-
-  // Front row coordinates (on ground floor at y = 0.0m)
-  const frontZ = 6.7 + Math.abs(colOffset) * 0.25;
-  const frontX = colOffset * 3.15;
-  const frontY = 0.0;
-  const frontYaw = colOffset * -0.06;
-
-  const x = isFrontRow ? frontX : backX;
-  const y = isFrontRow ? frontY : backY;
-  const z = isFrontRow ? frontZ : backZ;
-  const yaw = isFrontRow ? frontYaw : backYaw;
+  const pos = deskLayout[index] || { x: (index - 4.5) * 1.8, y: 0, z: 5.5, yaw: 0 };
+  const { x, y, z, yaw } = pos;
 
   const deskTexture = useDeskTexture(
     team.name,
@@ -232,15 +235,15 @@ function FranchiseDesk({
         <>
           <pointLight position={[0, 3.8, 0]} intensity={4.5} distance={9} color="#f5b82e" />
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-            <ringGeometry args={[1.5, 1.75, 36]} />
+            <ringGeometry args={[1.3, 1.55, 36]} />
             <meshBasicMaterial color="#f5b82e" />
           </mesh>
         </>
       )}
 
-      {/* Main Desk Tabletop (Height 0.72m) */}
+      {/* Main Desk Tabletop (Height 0.72m, width 1.65m) */}
       <mesh position={[0, 0.72, 0]}>
-        <boxGeometry args={[2.1, 0.08, 0.95]} />
+        <boxGeometry args={[1.65, 0.07, 0.85]} />
         <meshStandardMaterial
           color="#152642"
           roughness={0.4}
@@ -251,8 +254,8 @@ function FranchiseDesk({
       </mesh>
 
       {/* Desk Front Branding Plate with Team Name & Purse texture (No HTML tags!) */}
-      <mesh position={[0, 0.36, 0.48]}>
-        <planeGeometry args={[1.96, 0.64]} />
+      <mesh position={[0, 0.35, 0.43]}>
+        <planeGeometry args={[1.56, 0.54]} />
         {deskTexture ? (
           <meshStandardMaterial map={deskTexture} roughness={0.3} metalness={0.2} />
         ) : (
@@ -261,56 +264,56 @@ function FranchiseDesk({
       </mesh>
 
       {/* Glowing Edge Border Frame around Front Plate */}
-      <mesh position={[0, 0.36, 0.465]}>
-        <boxGeometry args={[2.02, 0.68, 0.02]} />
+      <mesh position={[0, 0.35, 0.415]}>
+        <boxGeometry args={[1.62, 0.58, 0.02]} />
         <meshBasicMaterial color={leading ? '#f5b82e' : selected ? '#38bdf8' : team.color || '#3b82f6'} />
       </mesh>
 
       {/* Desk Top Accent Line */}
-      <mesh position={[0, 0.74, 0.48]}>
-        <boxGeometry args={[2.08, 0.03, 0.04]} />
+      <mesh position={[0, 0.74, 0.43]}>
+        <boxGeometry args={[1.66, 0.025, 0.03]} />
         <meshBasicMaterial color={leading ? '#f5b82e' : team.color || '#3b82f6'} />
       </mesh>
 
       {/* Desk Legs */}
-      {[-0.96, 0.96].map((lx) => (
+      {[-0.75, 0.75].map((lx) => (
         <group key={lx} position={[lx, 0.34, 0]}>
-          <mesh position={[0, 0, -0.36]}>
-            <cylinderGeometry args={[0.035, 0.035, 0.68, 8]} />
+          <mesh position={[0, 0, -0.32]}>
+            <cylinderGeometry args={[0.03, 0.03, 0.68, 8]} />
             <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.3} />
           </mesh>
-          <mesh position={[0, 0, 0.36]}>
-            <cylinderGeometry args={[0.035, 0.035, 0.68, 8]} />
+          <mesh position={[0, 0, 0.32]}>
+            <cylinderGeometry args={[0.03, 0.03, 0.68, 8]} />
             <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.3} />
           </mesh>
         </group>
       ))}
 
-      {/* Franchise Chair (Seat at y=0.38m, backrest at z=-0.58m) */}
-      <group position={[0, 0, -0.58]}>
+      {/* Franchise Chair (Seat at y=0.38m, backrest at z=-0.52m) */}
+      <group position={[0, 0, -0.52]}>
         <mesh position={[0, 0.38, 0]}>
-          <boxGeometry args={[0.82, 0.07, 0.78]} />
+          <boxGeometry args={[0.74, 0.07, 0.7]} />
           <meshStandardMaterial color="#0f172a" roughness={0.7} />
         </mesh>
-        <mesh position={[0, 0.88, -0.36]}>
-          <boxGeometry args={[0.78, 0.95, 0.09]} />
+        <mesh position={[0, 0.88, -0.32]}>
+          <boxGeometry args={[0.7, 0.95, 0.08]} />
           <meshStandardMaterial color="#1e293b" roughness={0.6} />
         </mesh>
       </group>
 
       {/* Franchise Delegate Character - Perfectly seated and visible above table */}
-      <CharacterErrorBoundary fallback={<AuctionCharacterLoading position={[0, 0.38, -0.58]} color={team.color} />}>
-        <Suspense fallback={<AuctionCharacterLoading position={[0, 0.38, -0.58]} color={team.color} />}>
+      <CharacterErrorBoundary fallback={<AuctionCharacterLoading position={[0, 0.38, -0.52]} color={team.color} />}>
+        <Suspense fallback={<AuctionCharacterLoading position={[0, 0.38, -0.52]} color={team.color} />}>
           <CharacterInstance
             modelUrl={AUCTION_CHARACTER_MODEL}
-            position={[0, 0.38, -0.58]}
+            position={[0, 0.38, -0.52]}
             yaw={0}
             action={leading ? 'auctionBid' : 'auctionSit'}
             progress={leading ? 0.45 : 0.12}
             team={team.name}
             format="T20"
             kitRole="fielder"
-            heightScale={0.92}
+            heightScale={0.88}
             updateFps={leading ? 18 : 10}
             trackBall={false}
             castShadow={false}
@@ -318,7 +321,7 @@ function FranchiseDesk({
         </Suspense>
       </CharacterErrorBoundary>
 
-      {/* Interactive/Animated Bidding Paddle */}
+      {/* Small, realistic, neatly positioned Bidding Paddle */}
       <BidPaddle team={team} leading={leading} selected={selected} />
     </group>
   );
@@ -333,7 +336,7 @@ function AuctionGavel({ phase }: { phase: string }) {
   });
 
   return (
-    <group ref={ref} position={[0.26, 1.42, 0.52]} rotation={[0, 0, -0.4]}>
+    <group ref={ref} position={[0.22, 1.44, 0.65]} rotation={[0, 0, -0.4]}>
       <mesh rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.035, 0.045, 0.5, 10]} />
         <meshStandardMaterial color="#8b552d" roughness={0.4} />
@@ -358,7 +361,7 @@ function AuctionScreen({
   const currentBidCr = (currentBid / 10000000).toFixed(2);
 
   return (
-    <Html position={[0, 4.25, -3.8]} center distanceFactor={12}>
+    <Html position={[0, 5.3, -4.5]} center distanceFactor={13}>
       <div
         style={{
           width: 560,
@@ -616,49 +619,64 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
         <meshBasicMaterial color="#f5b82e" />
       </mesh>
 
-      {/* Back Row Tiered Riser Platform (Elevation y = 0.38m for Back Row 5 Desks) */}
-      <group position={[0, 0.19, 3.5]}>
+      {/* Left & Right Wing Tiered Risers (Elevation y = 0.42m for Back Row Desks) */}
+      <group position={[-2.8, 0.21, 4.15]}>
         <mesh>
-          <boxGeometry args={[15.6, 0.38, 2.8]} />
+          <boxGeometry args={[4.8, 0.42, 2.2]} />
           <meshStandardMaterial color="#0b1b38" roughness={0.5} metalness={0.3} />
         </mesh>
-        {/* Front gold edge trim */}
-        <mesh position={[0, 0.19, 1.41]}>
-          <boxGeometry args={[15.62, 0.04, 0.04]} />
+        <mesh position={[0, 0.21, 1.11]}>
+          <boxGeometry args={[4.82, 0.03, 0.03]} />
+          <meshBasicMaterial color="#f5b82e" />
+        </mesh>
+      </group>
+      <group position={[2.8, 0.21, 4.15]}>
+        <mesh>
+          <boxGeometry args={[4.8, 0.42, 2.2]} />
+          <meshStandardMaterial color="#0b1b38" roughness={0.5} metalness={0.3} />
+        </mesh>
+        <mesh position={[0, 0.21, 1.11]}>
+          <boxGeometry args={[4.82, 0.03, 0.03]} />
           <meshBasicMaterial color="#f5b82e" />
         </mesh>
       </group>
 
-      {/* Central Raised Stage Dais (Radius 2.7m, Elevation y = 0.68m) */}
-      <group position={[0, 0.34, -0.3]}>
+      {/* Central Blue Stage Runner down the center aisle */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 4.5]}>
+        <planeGeometry args={[1.8, 8.5]} />
+        <meshStandardMaterial color="#0b2452" roughness={0.6} />
+      </mesh>
+
+      {/* Central Raised Stage Dais (Radius 2.2m, Elevation y = 0.76m) */}
+      <group position={[0, 0.38, 0.0]}>
         <mesh>
-          <cylinderGeometry args={[2.7, 3.0, 0.68, 48]} />
+          <cylinderGeometry args={[2.2, 2.5, 0.76, 48]} />
           <meshStandardMaterial color="#0c234b" roughness={0.35} metalness={0.4} />
         </mesh>
         {/* Gold Stage Perimeter Ring */}
-        <mesh position={[0, 0.35, 0]}>
-          <cylinderGeometry args={[2.55, 2.75, 0.04, 48]} />
+        <mesh position={[0, 0.39, 0]}>
+          <cylinderGeometry args={[2.1, 2.3, 0.04, 48]} />
           <meshBasicMaterial color="#f5b82e" />
         </mesh>
       </group>
 
       {/* Big Screen Backwall Architecture */}
-      <mesh position={[0, 4.15, -4.35]}>
-        <boxGeometry args={[14.2, 6.1, 0.65]} />
+      <mesh position={[0, 5.3, -4.8]}>
+        <boxGeometry args={[14.2, 5.6, 0.65]} />
         <meshStandardMaterial color="#071633" metalness={0.65} roughness={0.24} />
       </mesh>
-      <mesh position={[0, 4.15, -3.98]}>
-        <boxGeometry args={[13.55, 5.55, 0.05]} />
+      <mesh position={[0, 5.3, -4.48]}>
+        <boxGeometry args={[13.55, 5.15, 0.05]} />
         <meshBasicMaterial color="#102d75" />
       </mesh>
       {[-7.55, 7.55].map((x) => (
-        <group key={x} position={[x, 3.65, -1.8]}>
+        <group key={x} position={[x, 4.2, -2.2]}>
           <mesh>
-            <boxGeometry args={[0.3, 7.9, 0.5]} />
+            <boxGeometry args={[0.3, 8.8, 0.5]} />
             <meshStandardMaterial color="#172d69" metalness={0.4} roughness={0.32} emissive="#123a8a" emissiveIntensity={0.45} />
           </mesh>
           <mesh position={[0, 0, 0.29]}>
-            <boxGeometry args={[0.07, 7.2, 0.04]} />
+            <boxGeometry args={[0.07, 8.0, 0.04]} />
             <meshBasicMaterial color="#ffbd55" />
           </mesh>
         </group>
@@ -667,35 +685,35 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
       {/* 3D Screen with Player Photo, Bid Status & SOLD/UNSOLD celebrations */}
       <AuctionScreen {...props} leadingTeam={leadingTeam} />
 
-      {/* Auctioneer Podium / Lectern - Sleek, low waist-height (0.68m) standing at y=0.68 (NO clumsy tags!) */}
-      <group position={[0, 0.68, 0.5]}>
-        <mesh position={[0, 0.34, 0]}>
-          <boxGeometry args={[1.2, 0.68, 0.5]} />
+      {/* Auctioneer Podium / Lectern - Sleek, low waist-height (0.62m) standing at y=0.76 */}
+      <group position={[0, 0.76, 0.6]}>
+        <mesh position={[0, 0.31, 0]}>
+          <boxGeometry args={[1.0, 0.62, 0.45]} />
           <meshStandardMaterial color="#071b40" metalness={0.5} roughness={0.3} />
         </mesh>
         {/* Sloped Top Lectern Rest with Gold Trim */}
-        <mesh position={[0, 0.69, 0]} rotation={[0.15, 0, 0]}>
-          <boxGeometry args={[1.28, 0.06, 0.56]} />
+        <mesh position={[0, 0.63, 0]} rotation={[0.15, 0, 0]}>
+          <boxGeometry args={[1.08, 0.05, 0.5]} />
           <meshStandardMaterial color="#f5b82e" emissive="#9a6510" emissiveIntensity={0.3} metalness={0.6} />
         </mesh>
         {/* Sleek 3D Gold Inlay Bar */}
-        <mesh position={[0, 0.36, 0.26]}>
-          <boxGeometry args={[0.9, 0.08, 0.02]} />
+        <mesh position={[0, 0.33, 0.23]}>
+          <boxGeometry args={[0.8, 0.06, 0.02]} />
           <meshStandardMaterial color="#f5b82e" metalness={0.8} roughness={0.2} />
         </mesh>
         {/* Sounding block for gavel */}
-        <mesh position={[0.26, 0.72, 0.06]}>
-          <cylinderGeometry args={[0.11, 0.12, 0.04, 16]} />
+        <mesh position={[0.22, 0.66, 0.05]}>
+          <cylinderGeometry args={[0.09, 0.1, 0.035, 16]} />
           <meshStandardMaterial color="#451a03" roughness={0.4} metalness={0.3} />
         </mesh>
       </group>
 
-      {/* Auctioneer 3D Character - Elevated at y=0.68 on dais, tall stature (1.12 scale), completely visible & unobstructed */}
-      <CharacterErrorBoundary fallback={<AuctionCharacterLoading position={[0, 0.68, -0.1]} color="#f5b82e" />}>
-        <Suspense fallback={<AuctionCharacterLoading position={[0, 0.68, -0.1]} color="#f5b82e" />}>
+      {/* Auctioneer 3D Character - Elevated at y=0.76 on dais, tall commanding stature, completely unobstructed */}
+      <CharacterErrorBoundary fallback={<AuctionCharacterLoading position={[0, 0.76, 0.0]} color="#f5b82e" />}>
+        <Suspense fallback={<AuctionCharacterLoading position={[0, 0.76, 0.0]} color="#f5b82e" />}>
           <CharacterInstance
             modelUrl={AUCTION_CHARACTER_MODEL}
-            position={[0, 0.68, -0.1]}
+            position={[0, 0.76, 0.0]}
             yaw={0}
             action={phase === 'sold' ? 'victory' : 'auctioneerCall'}
             progress={phase === 'sold' ? 0.45 : 0.35}
@@ -775,7 +793,7 @@ export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps)
         dpr={[0.8, 1.2]}
         shadows={false}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
-        camera={{ position: [0, 5.5, 15.0], fov: 48, near: 0.1, far: 100 }}
+        camera={{ position: [0, 5.8, 16.0], fov: 48, near: 0.1, far: 100 }}
       >
         <AuctionRoomScene {...props} />
       </Canvas>
