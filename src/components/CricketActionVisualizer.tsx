@@ -68,6 +68,7 @@ import { DeliveryResult, DeliveryLifecycle } from '../types/delivery';
 import { evaluateInterception, InterceptionResult } from '../engine/fielding/FieldingInterceptionEngine';
 import { BallLifecycleState } from '../engine/fielding/BallLifecycleController';
 import { CaptainDecision } from '../engine/ai/AICaptainEngine';
+import { soundFX } from '../3d/CricketSoundFX';
 import { DetailedBowlingPlan } from '../engine/ai/BowlingPlanEngine';
 import { BattingIntent, BatterInningsState } from '../engine/ai/BatterDecisionEngine';
 import { BatterScoringMemory, CANONICAL_ZONES, CANONICAL_ZONE_LIST, CanonicalZoneId } from '../engine/analytics/BatterScoringMemory';
@@ -409,6 +410,7 @@ export default function CricketActionVisualizer({
     fielderId: string;
     action: string;
     currentPos: Point;
+    progress?: number;
   } | null>(null);
 
   // Drag and drop tweaking
@@ -775,7 +777,23 @@ export default function CricketActionVisualizer({
     const from = interception.interceptPoint;
     const bowlerHome = { x: 300, y: 410 };
     const distToBowler = Math.hypot(from.x - bowlerHome.x, from.y - bowlerHome.y);
-    const baseMs = Math.min(850, Math.max(320, distToBowler * 2.0));
+
+    // Identify retrieving fielder
+    const candidateFielders = fieldersRef.current.filter(
+      (f) => f.positionKey !== 'BOWLER' && f.positionKey !== 'WICKETKEEPER'
+    );
+    let retrievingFielder = candidateFielders.find((f) => f.id === interception.fielderId);
+    if (!retrievingFielder && candidateFielders.length > 0) {
+      retrievingFielder = candidateFielders.reduce((best, f) => {
+        const d = Math.hypot(f.currentX - from.x, f.currentY - from.y);
+        return d < best.dist ? { f, dist: d } : best;
+      }, { f: candidateFielders[0], dist: Infinity }).f;
+    }
+    const fielderId = retrievingFielder?.id || 'fielder';
+
+    // Natural human pacing for realistic, readable pickup and throw:
+    // ~1050ms at 1x speed gives 300ms pickup, 300ms throw windup, 450ms parabolic flight
+    const baseMs = Math.min(1300, Math.max(900, 500 + distToBowler * 1.8));
     const speedMult = speed === 1 ? 1 : speed === 1.5 ? 1.4 : 2.2;
     const duration = baseMs / speedMult;
 
@@ -793,18 +811,63 @@ export default function CricketActionVisualizer({
         return;
       }
       const t = Math.min(1, (now - t0) / duration);
-      const eased = t * t * (3 - 2 * t); // smoothstep
-      const bx = from.x + (bowlerHome.x - from.x) * eased;
-      const by = from.y + (bowlerHome.y - from.y) * eased;
-      setBallPos({ x: bx, y: by });
-      setBallScale(0.7);
-      setBallTrail((prev) => [...prev.slice(-5), { x: bx, y: by }]);
+
+      // Phase 1: Fielder gathers and bends down to pick up the ball (0.00 <= t < 0.32)
+      if (t < 0.32) {
+        const pPickup = t / 0.32;
+        setActiveFielderAction({
+          fielderId,
+          action: '🧤 BALL PICKUP',
+          currentPos: from,
+          progress: pPickup,
+        });
+        setBallPos(from);
+        setBallScale(0.85);
+        setAnimProgress(Number((pPickup * 30).toFixed(1)));
+      }
+      // Phase 2: Fielder rises, winds up arm, and executes return throw (0.32 <= t < 0.60)
+      else if (t < 0.60) {
+        const pThrow = (t - 0.32) / 0.28;
+        setActiveFielderAction({
+          fielderId,
+          action: '🎯 THROW',
+          currentPos: from,
+          progress: pThrow,
+        });
+        const pDepart = Math.max(0, (pThrow - 0.35) / 0.65);
+        const bx = from.x + (bowlerHome.x - from.x) * (pDepart * 0.35);
+        const by = from.y + (bowlerHome.y - from.y) * (pDepart * 0.35);
+        setBallPos({ x: bx, y: by });
+        setBallScale(0.8);
+        setBallTrail((prev) => [...prev.slice(-5), { x: bx, y: by }]);
+        setAnimProgress(Number((30 + pThrow * 30).toFixed(1)));
+      }
+      // Phase 3: Parabolic flight through the air into bowler's waiting hands (0.60 <= t <= 1.0)
+      else {
+        const pFlight = (t - 0.60) / 0.40;
+        const flightEased = pFlight * pFlight * (3 - 2 * pFlight); // smoothstep
+        setActiveFielderAction({
+          fielderId,
+          action: 'FIELD READY',
+          currentPos: from,
+          progress: 1.0,
+        });
+        const bx = from.x + (bowlerHome.x - from.x) * (0.35 + 0.65 * flightEased);
+        const by = from.y + (bowlerHome.y - from.y) * (0.35 + 0.65 * flightEased);
+        setBallPos({ x: bx, y: by });
+        setBallScale(0.75 + Math.sin(flightEased * Math.PI) * 0.25);
+        setBallTrail((prev) => [...prev.slice(-5), { x: bx, y: by }]);
+        setAnimProgress(Number((60 + pFlight * 40).toFixed(1)));
+      }
 
       if (t < 1) {
         fieldMoveAnimFrameRef.current = requestAnimationFrame(frame);
       } else {
-        // Ball is back with the bowler: retrieval complete, next delivery may now be released.
+        // Ball is safely caught in bowler's hands at crease
+        soundFX.playCatch();
         setActiveFielderAction(null);
+        setBallPos(bowlerHome);
+        setAnimProgress(100);
         onBallLifecycleChangeRef.current?.('BALL_READY', interception);
         (globalThis as { __arenaGateLog?: unknown[] }).__arenaGateLog?.push({ t: performance.now(), e: 'retrieval-end' });
         gateRef.current?.done('retrieval');

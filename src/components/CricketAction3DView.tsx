@@ -43,6 +43,7 @@ export interface FielderAction {
   fielderId: string;
   action: string;
   currentPos: Point;
+  progress?: number;
 }
 
 export interface CricketAction3DViewProps {
@@ -323,9 +324,29 @@ function StadiumScene({
         // Rolling along grass with small initial bounce
         y = localProgress < 0.25 ? 0.45 * (1 - localProgress / 0.25) + 0.14 : 0.14;
       }
+    } else if (stage === 'OUTCOME') {
+      // Authentic 3D parabolic return throw from fielder to bowler's hands
+      const bowlerWorldPos = bowlerWorld;
+      const dX = ballWorld[0] - bowlerWorldPos[0];
+      const dZ = ballWorld[1] - bowlerWorldPos[1];
+      const distToBowler = Math.hypot(dX, dZ);
+      const totalThrowDist = activeFielderAction
+        ? Math.hypot(toWorld(activeFielderAction.currentPos)[0] - bowlerWorldPos[0], toWorld(activeFielderAction.currentPos)[1] - bowlerWorldPos[1])
+        : 18.0;
+
+      if (distToBowler > 0.45 && totalThrowDist > 1.2) {
+        const tFlight = Math.max(0, Math.min(1, 1 - distToBowler / Math.max(1, totalThrowDist)));
+        const arcHeight = Math.min(3.8, Math.max(1.1, totalThrowDist * 0.12));
+        const startY = 0.95; // Fielder release height
+        const targetY = 1.35; // Bowler catch height
+        y = THREE.MathUtils.lerp(startY, targetY, tFlight) + Math.sin(tFlight * Math.PI) * arcHeight;
+      } else {
+        // Gathered cleanly into bowler's hands at crease
+        y = 1.35;
+      }
     }
     return [ballWorld[0], y, ballWorld[1]];
-  }, [stage, progress, localProgress, delivery, ballWorld]);
+  }, [stage, progress, localProgress, delivery, ballWorld, bowlerWorld, activeFielderAction]);
 
   // Live Scoreboard Data
   const scoreboardData: StadiumScoreboardData = useMemo(() => {
@@ -574,11 +595,18 @@ function StadiumScene({
         // Select specific character action
         let action: CricketArenaAction = 'ready';
         if (isBowler) {
+          const dX = ballWorld[0] - bowlerWorld[0];
+          const dZ = ballWorld[1] - bowlerWorld[1];
+          const distToBowler = Math.hypot(dX, dZ);
+          const isCatching = stage === 'OUTCOME' && !delivery?.wicket && distToBowler < 8.5;
+
           action =
             stage === 'BOWLER_RELEASE' || stage === 'PITCH_BOUNCE'
               ? bowlAction
               : stage === 'OUTCOME' && delivery?.wicket
               ? 'celebrateSmall'
+              : isCatching
+              ? 'catchChest'
               : 'ready';
         } else if (isKeeper) {
           action =
@@ -593,13 +621,17 @@ function StadiumScene({
           action = 'handsUp';
         }
 
-        // Direction facing: fielders face the striker unless actively tracking/chasing the ball
+        // Direction facing: fielders face the striker unless actively tracking/chasing or throwing
         const facingAngle = isBowler
-          ? 0
+          ? (stage === 'OUTCOME' && !delivery?.wicket
+              ? Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1])
+              : 0)
           : isKeeper
           ? Math.PI
           : active
-          ? Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1])
+          ? (stage === 'OUTCOME'
+              ? Math.atan2(bowlerWorld[0] - location[0], bowlerWorld[1] - location[1])
+              : Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1]))
           : Math.atan2(strikerWorld[0] - location[0], strikerWorld[1] - location[1]);
 
         const fielderFps = isBowler || active
@@ -607,6 +639,14 @@ function StadiumScene({
           : isKeeper
           ? (motionQuality === 'ULTRA' ? 45 : 30)
           : (motionQuality === 'ULTRA' ? 30 : 20);
+
+        const charProgress = isBowler
+          ? (stage === 'OUTCOME'
+              ? Math.max(0, Math.min(1, 1 - Math.hypot(ballWorld[0] - bowlerWorld[0], ballWorld[1] - bowlerWorld[1]) / 6.0))
+              : Math.min(1, progress / 45))
+          : active?.progress !== undefined
+          ? active.progress
+          : localProgress;
 
         return (
           <CharacterErrorBoundary key={fielder.id} fallback={<CharacterLoadingSilhouette position={location} yaw={facingAngle} />}>
@@ -620,7 +660,7 @@ function StadiumScene({
                 heightScale={heightScale(heightCmFor(fielder.name, (fielder as { role?: string }).role, isBowler ? bowling.kind : undefined))}
                 isLeftHanded={isBowler && bowling.leftArm}
                 action={action}
-                progress={isBowler ? Math.min(1, progress / 45) : localProgress}
+                progress={charProgress}
                 ballPos={ball3DPos}
                 showDebugSkeleton={showDebugSkeleton}
                 updateFps={fielderFps}

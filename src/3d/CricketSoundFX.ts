@@ -90,6 +90,32 @@ class CricketSoundFX {
     }
   }
 
+  // Soft leather glove / hands catch thud for fielding collection and return throw
+  public playCatch() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+
+      const osc = this.ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(240, t);
+      osc.frequency.exponentialRampToValueAtTime(75, t + 0.08);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.35, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(t);
+      osc.stop(t + 0.09);
+    } catch {
+      // Safe fallback
+    }
+  }
+
   // Wooden Stumps clatter & bails flying
   public playStumpsClatter() {
     try {
