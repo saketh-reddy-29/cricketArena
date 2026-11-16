@@ -244,7 +244,7 @@ function Stumps({ z, hit, refs }: { z: number; hit?: boolean; refs?: React.Mutab
   );
 }
 
-export function Stadium({ scoreboardData, stumpHit = false, isDay = false, crowdEnergy = 0.2 }: { scoreboardData?: StadiumScoreboardData; stumpHit?: boolean; isDay?: boolean; crowdEnergy?: number }) {
+function StadiumImpl({ scoreboardData, stumpHit = false, isDay = false, crowdEnergy = 0.2 }: { scoreboardData?: StadiumScoreboardData; stumpHit?: boolean; isDay?: boolean; crowdEnergy?: number }) {
   const grass = useMemo(makeGrass, []);
   const pitch = useMemo(makePitch, []);
   const crowdA = useMemo(() => makeCrowd(11), []);
@@ -443,4 +443,5 @@ export function Stadium({ scoreboardData, stumpHit = false, isDay = false, crowd
   );
 }
 
+export const Stadium = React.memo(StadiumImpl);
 export default Stadium;
