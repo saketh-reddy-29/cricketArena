@@ -161,18 +161,41 @@ export default function AuctionRoom() {
         : auctionCurrentBid;
       if (franchise.purse < requiredNextBid) return false;
 
+      const roster = franchise.squad
+        .map((playerId) => players.find((player) => player.id === playerId))
+        .filter((player): player is Player => Boolean(player));
+      const hasWicketkeeper = roster.some((player) => player.role === 'Wicketkeeper');
+      const bowlingOptions = roster.filter((player) => player.role === 'Bowler' || player.role === 'All-rounder').length;
+      const fillsMinimumXI = franchise.squad.length < 11;
+      const fillsWicketkeeperRole = !hasWicketkeeper && currentPlayer.role === 'Wicketkeeper';
+      const fillsBowlingDepth = bowlingOptions < 5 && (currentPlayer.role === 'Bowler' || currentPlayer.role === 'All-rounder');
+      const mustCompleteXI = fillsMinimumXI || fillsWicketkeeperRole || fillsBowlingDepth;
+
       const aiState = franchiseAIStates.current.get(franchise.id) ?? createFranchiseAIState();
       const decision = evaluateBid(currentPlayer, franchise, auctionCurrentBid, franchises, auctionStateForAI, aiState);
-      return decision.decision === 'BUY' && Math.random() > decision.dropoutProbability;
+      return mustCompleteXI || (decision.decision === 'BUY' && Math.random() > decision.dropoutProbability);
     });
 
     if (eligibleFranchises.length === 0) return;
 
     const nextBidder = eligibleFranchises
       .map((franchise) => {
+        const roster = franchise.squad
+          .map((playerId) => players.find((player) => player.id === playerId))
+          .filter((player): player is Player => Boolean(player));
+        const hasWicketkeeper = roster.some((player) => player.role === 'Wicketkeeper');
+        const bowlingOptions = roster.filter((player) => player.role === 'Bowler' || player.role === 'All-rounder').length;
+        const mustCompleteXI =
+          franchise.squad.length < 11 ||
+          (!hasWicketkeeper && currentPlayer.role === 'Wicketkeeper') ||
+          (bowlingOptions < 5 && (currentPlayer.role === 'Bowler' || currentPlayer.role === 'All-rounder'));
         const aiState = franchiseAIStates.current.get(franchise.id) ?? createFranchiseAIState();
         const decision = evaluateBid(currentPlayer, franchise, auctionCurrentBid, franchises, auctionStateForAI, aiState);
-        return { franchise, decision, delay: getBidDelay(decision) };
+        return {
+          franchise,
+          decision,
+          delay: mustCompleteXI ? 450 + Math.random() * 250 : getBidDelay(decision),
+        };
       })
       .sort((a, b) => a.delay - b.delay)[0];
 
