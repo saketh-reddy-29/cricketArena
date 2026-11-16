@@ -165,7 +165,13 @@ export function CharacterInstance({
     } else {
       const from = smoothedPose.current;
       const next = { ...targetPose };
-      (Object.keys(targetPose) as (keyof CricketArenaPose)[]).forEach((key) => {
+      // Include keys present only in the previous pose (e.g. optional arm-lateral
+      // and spine-twist offsets) so they blend back to neutral instead of snapping off.
+      const poseKeys = new Set([
+        ...Object.keys(from),
+        ...Object.keys(targetPose),
+      ]) as Set<keyof CricketArenaPose>;
+      poseKeys.forEach((key) => {
         const a = from[key] ?? 0;
         const b = targetPose[key] ?? 0;
         if (typeof a === 'number' && typeof b === 'number') {
