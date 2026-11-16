@@ -1,10 +1,13 @@
-import React, { useRef } from 'react';
+import React, { Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Franchise } from '../stores/useGameStore';
 import type { Player } from '../types/common';
 import { getPlayerAvatar } from '../lib/playerImages';
+import { CharacterInstance } from '../characters/CharacterInstance';
+
+const AUCTION_CHARACTER_MODEL = '/models/cricket-arena/cartoon_character_3d_model.glb';
 
 type DeskTeam = Pick<Franchise, 'id' | 'name' | 'shortName' | 'color' | 'logo' | 'purse'>;
 
@@ -142,6 +145,29 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
       {franchises.map((team, index) => (
         <FranchiseDesk key={team.id} team={team} index={index} count={franchises.length} leading={team.id === leadingTeamId} selected={team.id === selectedTeamId} />
       ))}
+      {/* Existing rigged cricket GLB: franchise representatives and the auctioneer. */}
+      {franchises.map((team, index) => {
+        const leftCount = Math.ceil(franchises.length / 2);
+        const onLeft = index < leftCount;
+        const sideIndex = onLeft ? index : index - leftCount;
+        const sideCount = onLeft ? leftCount : franchises.length - leftCount;
+        const z = sideCount <= 1 ? 0 : -10 + (sideIndex / (sideCount - 1)) * 19;
+        return (
+          <CharacterInstance
+            key={'auction-rep-' + team.id}
+            modelUrl={AUCTION_CHARACTER_MODEL}
+            position={[onLeft ? -10.4 : 10.4, z]}
+            yaw={onLeft ? Math.PI / 2 : -Math.PI / 2}
+            action={team.id === leadingTeamId ? 'handsUp' : 'idle'}
+            progress={team.id === leadingTeamId ? 0.45 : 0.12}
+            team={team.name}
+            format="T20"
+            kitRole="fielder"
+            heightScale={0.78}
+          />
+        );
+      })}
+      <CharacterInstance modelUrl={AUCTION_CHARACTER_MODEL} position={[0, -1.9]} yaw={0} action={phase === 'sold' ? 'victory' : 'handsUp'} progress={phase === 'sold' ? 0.42 : 0.28} heightScale={0.92} />
       <Html position={[0, 3.25, 0.5]} center distanceFactor={14}>
         <div style={{
           width: 220, padding: 10, borderRadius: 14,
@@ -191,7 +217,9 @@ export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps)
         CRIC ARENA · LIVE AUCTION BROADCAST
       </div>
       <Canvas dpr={[0.55, 0.85]} gl={{ antialias: false, powerPreference: 'high-performance' }} camera={{ position: [0, 11, 30], fov: 48, near: 0.1, far: 100 }}>
-        <AuctionRoomScene {...props} />
+        <Suspense fallback={null}>
+          <AuctionRoomScene {...props} />
+        </Suspense>
       </Canvas>
     </div>
   );
