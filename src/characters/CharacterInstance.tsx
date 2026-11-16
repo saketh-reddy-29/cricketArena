@@ -31,9 +31,15 @@ export interface CharacterInstanceProps {
   /** Shirt number and surname printed on the back */
   jerseyNumber?: number;
   jerseyName?: string;
+  /** Pose-solve frequency; use a lower rate for distant, idle players. */
+  updateFps?: number;
+  /** Disable live-ball head tracking for background players. */
+  trackBall?: boolean;
+  /** Only foreground characters should cast dynamic shadows. */
+  castShadow?: boolean;
 }
 
-export function CharacterInstance({
+function CharacterInstanceInner({
   modelUrl,
   position,
   yaw,
@@ -51,6 +57,9 @@ export function CharacterInstance({
   kitRole = 'fielder',
   jerseyNumber,
   jerseyName,
+  updateFps = 30,
+  trackBall = true,
+  castShadow = false,
 }: CharacterInstanceProps) {
   const { scene } = useGLTF(modelUrl);
   const model: CricketRigModel = useMemo(() => buildCharacterRig(scene), [scene]);
@@ -62,6 +71,7 @@ export function CharacterInstance({
 
   // Debug Skeleton Line Ref
   const debugLinesRef = useRef<THREE.LineSegments>(null);
+  const lastFrameRef = useRef<{ time: number; action: CricketArenaAction | null }>({ time: -Infinity, action: null });
 
   // 3D Bat geometry & materials
   const batGroup = useMemo(() => {
@@ -130,16 +140,30 @@ export function CharacterInstance({
     };
   }, [model]);
 
+  useEffect(() => {
+    model.scene.traverse((obj) => {
+      const mesh = obj as THREE.SkinnedMesh;
+      if (!mesh.isSkinnedMesh) return;
+      mesh.castShadow = castShadow;
+      // Receiving a full stadium shadow on every skinned mesh adds cost without a visible gain.
+      mesh.receiveShadow = false;
+    });
+  }, [model, castShadow]);
+
   useFrame((state, delta) => {
     const root = rootRef.current;
     const modelWrapper = modelWrapperRef.current;
     if (!root || !modelWrapper) return;
 
     const clock = state.clock.elapsedTime;
+    const fps = Math.max(8, Math.min(60, updateFps));
+    const previousFrame = lastFrameRef.current;
+    if (previousFrame.action === action && clock - previousFrame.time < 1 / fps) return;
+    lastFrameRef.current = { time: clock, action };
     let pose = getCricketArenaPose(action, progress, clock, isLeftHanded);
 
     // Dynamic Head Tracking: look towards ball if within 12 meters
-    if (ballPos && root) {
+    if (trackBall && ballPos && root) {
       const charWorldPos = root.position;
       const dx = ballPos[0] - charWorldPos.x;
       const dz = ballPos[2] - charWorldPos.z;
@@ -292,4 +316,40 @@ export function CharacterInstance({
   );
 }
 
+const STATIC_POSE_ACTIONS = new Set<CricketArenaAction>(['idle', 'ready', 'keeperReady', 'batIdle']);
+
+function sameVector(a?: readonly number[], b?: readonly number[]) {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
+
+function areCharacterPropsEqual(prev: CharacterInstanceProps, next: CharacterInstanceProps) {
+  const staticPose = prev.action === next.action && STATIC_POSE_ACTIONS.has(next.action);
+  const compareBall = next.trackBall !== false;
+  return (
+    prev.modelUrl === next.modelUrl &&
+    sameVector(prev.position, next.position) &&
+    prev.yaw === next.yaw &&
+    prev.action === next.action &&
+    (staticPose || prev.progress === next.progress) &&
+    (!compareBall || sameVector(prev.ballPos, next.ballPos)) &&
+    prev.hasBat === next.hasBat &&
+    prev.isLeftHanded === next.isLeftHanded &&
+    prev.heightScale === next.heightScale &&
+    prev.batBladeRef === next.batBladeRef &&
+    prev.showDebugSkeleton === next.showDebugSkeleton &&
+    prev.team === next.team &&
+    prev.format === next.format &&
+    prev.kitVariant === next.kitVariant &&
+    prev.kitRole === next.kitRole &&
+    prev.jerseyNumber === next.jerseyNumber &&
+    prev.jerseyName === next.jerseyName &&
+    prev.updateFps === next.updateFps &&
+    prev.trackBall === next.trackBall &&
+    prev.castShadow === next.castShadow
+  );
+}
+
+export const CharacterInstance = React.memo(CharacterInstanceInner, areCharacterPropsEqual);
 export default CharacterInstance;
