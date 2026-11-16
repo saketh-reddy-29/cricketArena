@@ -102,22 +102,6 @@ export default function AuctionRoom() {
     };
   }, [auctionPoolIndex, totalPlayersInPool, auctionHistory, auctionPool, players]);
 
-  // Master countdown timer tick
-  useEffect(() => {
-    if (auctionPhase !== 'bidding' || auctionIsPaused) return;
-
-    const interval = setInterval(() => {
-      if (auctionTimer <= 1) {
-        clearInterval(interval);
-        handleSaleConclusion();
-      } else {
-        setAuctionTimer(auctionTimer - 1);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [auctionPhase, auctionIsPaused, auctionTimer, setAuctionTimer, handleSaleConclusion]);
-
   // Authoritative conclusion handler
   const handleSaleConclusion = useCallback(() => {
     if (auctionPhase !== 'bidding') return;
@@ -138,6 +122,22 @@ export default function AuctionRoom() {
       advanceAuctionNextPlayer();
     }, pauseMs);
   }, [auctionPhase, finalizePlayerSale, selectedFranchiseId, advanceAuctionNextPlayer]);
+
+  // Master countdown timer tick
+  useEffect(() => {
+    if (auctionPhase !== 'bidding' || auctionIsPaused) return;
+
+    const interval = setInterval(() => {
+      if (auctionTimer <= 1) {
+        clearInterval(interval);
+        handleSaleConclusion();
+      } else {
+        setAuctionTimer(auctionTimer - 1);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [auctionPhase, auctionIsPaused, auctionTimer, setAuctionTimer, handleSaleConclusion]);
 
   // AI Bidding Engine loop
   // The countdown intentionally is NOT a dependency: changing it every second
