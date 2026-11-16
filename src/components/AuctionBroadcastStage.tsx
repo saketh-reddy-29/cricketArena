@@ -33,6 +33,104 @@ interface AuctionBroadcastStageProps {
   isPurseShort?: boolean;
 }
 
+function useDeskTexture(
+  teamName: string,
+  shortName: string,
+  purse: number,
+  color: string,
+  leading: boolean,
+  selected: boolean
+): THREE.CanvasTexture | null {
+  const textureRef = useRef<THREE.CanvasTexture | null>(null);
+
+  const texture = React.useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 160;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Dark studio console background
+    ctx.fillStyle = leading ? '#141c2e' : selected ? '#0c1a30' : '#081220';
+    ctx.fillRect(0, 0, 512, 160);
+
+    // Team color vertical accent bar
+    ctx.fillStyle = color || '#258bff';
+    ctx.fillRect(0, 0, 16, 160);
+
+    // Desk plate border
+    ctx.strokeStyle = leading ? '#f5b82e' : selected ? '#38bdf8' : 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = leading ? 8 : 4;
+    ctx.strokeRect(2, 2, 508, 156);
+
+    // Team Short Name
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 50px Arial, Helvetica, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(shortName || teamName, 32, 24);
+
+    // Purse Value
+    const purseCr = (purse / 10000000).toFixed(1);
+    ctx.fillStyle = leading ? '#f5b82e' : '#38bdf8';
+    ctx.font = 'bold 44px Arial, Helvetica, sans-serif';
+    ctx.fillText(`₹${purseCr} Cr`, 32, 90);
+
+    // Status pill
+    if (leading) {
+      ctx.fillStyle = '#f5b82e';
+      if (typeof ctx.roundRect === 'function') {
+        ctx.beginPath();
+        ctx.roundRect(330, 48, 160, 64, 10);
+        ctx.fill();
+      } else {
+        ctx.fillRect(330, 48, 160, 64);
+      }
+
+      ctx.fillStyle = '#050c18';
+      ctx.font = '900 24px Arial, Helvetica, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('HIGH BID', 410, 80);
+    } else if (selected) {
+      ctx.fillStyle = '#1d4ed8';
+      if (typeof ctx.roundRect === 'function') {
+        ctx.beginPath();
+        ctx.roundRect(330, 48, 160, 64, 10);
+        ctx.fill();
+      } else {
+        ctx.fillRect(330, 48, 160, 64);
+      }
+
+      ctx.fillStyle = '#93c5fd';
+      ctx.font = 'bold 22px Arial, Helvetica, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('YOUR TEAM', 410, 80);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    return tex;
+  }, [teamName, shortName, purse, color, leading, selected]);
+
+  React.useEffect(() => {
+    if (textureRef.current && textureRef.current !== texture) {
+      textureRef.current.dispose();
+    }
+    textureRef.current = texture;
+    return () => {
+      if (textureRef.current) {
+        textureRef.current.dispose();
+      }
+    };
+  }, [texture]);
+
+  return texture;
+}
+
 function BidPaddle({ team, leading, selected }: { team: DeskTeam; leading: boolean; selected: boolean }) {
   const paddle = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
@@ -60,31 +158,24 @@ function BidPaddle({ team, leading, selected }: { team: DeskTeam; leading: boole
           roughness={0.4}
         />
       </mesh>
+      {/* Paddle Face with Team Color */}
       <mesh position={[0, 0.22, 0.045]}>
-        <boxGeometry args={[0.6, 0.72, 0.015]} />
-        <meshBasicMaterial color={team.color || '#258bff'} />
+        <boxGeometry args={[0.62, 0.74, 0.015]} />
+        <meshStandardMaterial
+          color={team.color || '#258bff'}
+          roughness={0.3}
+          metalness={0.2}
+          emissive={leading ? team.color || '#258bff' : '#000000'}
+          emissiveIntensity={leading ? 0.2 : 0}
+        />
       </mesh>
-      <Html position={[0, 0.22, 0.06]} center distanceFactor={14}>
-        <div
-          style={{
-            minWidth: 58,
-            padding: '4px 6px',
-            borderRadius: 6,
-            background: 'rgba(3,10,24,0.94)',
-            border: leading ? '1.5px solid #f5b82e' : '1px solid rgba(255,255,255,0.3)',
-            color: '#fff',
-            textAlign: 'center',
-            fontSize: 11,
-            fontWeight: 900,
-            letterSpacing: 1,
-            whiteSpace: 'nowrap',
-            boxShadow: leading ? '0 0 15px rgba(245,184,46,0.6)' : '0 4px 12px rgba(0,0,0,0.5)',
-          }}
-        >
-          {team.shortName}
-          {leading ? <div style={{ color: '#f5b82e', fontSize: 8, marginTop: 1 }}>HIGH BID</div> : null}
-        </div>
-      </Html>
+      {/* Gold Rim accent when leading */}
+      {leading && (
+        <mesh position={[0, 0.22, 0.05]}>
+          <boxGeometry args={[0.66, 0.78, 0.01]} />
+          <meshBasicMaterial color="#f5b82e" />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -92,7 +183,6 @@ function BidPaddle({ team, leading, selected }: { team: DeskTeam; leading: boole
 function FranchiseDesk({
   team,
   index,
-  count,
   leading,
   selected,
 }: {
@@ -102,18 +192,41 @@ function FranchiseDesk({
   leading: boolean;
   selected: boolean;
 }) {
-  const leftCount = Math.ceil(count / 2);
-  const onLeft = index < leftCount;
-  const sideIndex = onLeft ? index : index - leftCount;
-  const sideCount = onLeft ? leftCount : count - leftCount;
+  // Arrange 10 franchise desks into two clean, tiered rows facing the stage and camera:
+  // Back Row (Row 1): indices 0 to 4 (elevated at y = 0.38m on riser)
+  // Front Row (Row 0): indices 5 to 9 (ground floor at y = 0.0m)
+  const isFrontRow = index >= 5;
+  const col = isFrontRow ? index - 5 : index; // 0, 1, 2, 3, 4
+  const colOffset = col - 2; // -2, -1, 0, 1, 2
 
-  // Stagger the 5 desks in an inward-facing broadcast arc inside the visible camera viewport
-  const z = sideCount <= 1 ? 0 : -1.8 + (sideIndex / (sideCount - 1)) * 7.6;
-  const x = onLeft ? -6.2 - sideIndex * 0.25 : 6.2 + sideIndex * 0.25;
-  const yaw = onLeft ? 0.48 : -0.48;
+  // Back row coordinates (on elevated riser at y = 0.38m)
+  const backZ = 3.3 + Math.abs(colOffset) * 0.25;
+  const backX = colOffset * 2.85;
+  const backY = 0.38;
+  const backYaw = colOffset * -0.06;
+
+  // Front row coordinates (on ground floor at y = 0.0m)
+  const frontZ = 6.7 + Math.abs(colOffset) * 0.25;
+  const frontX = colOffset * 3.15;
+  const frontY = 0.0;
+  const frontYaw = colOffset * -0.06;
+
+  const x = isFrontRow ? frontX : backX;
+  const y = isFrontRow ? frontY : backY;
+  const z = isFrontRow ? frontZ : backZ;
+  const yaw = isFrontRow ? frontYaw : backYaw;
+
+  const deskTexture = useDeskTexture(
+    team.name,
+    team.shortName,
+    team.purse,
+    team.color,
+    leading,
+    selected
+  );
 
   return (
-    <group position={[x, 0, z]} rotation={[0, yaw, 0]}>
+    <group position={[x, y, z]} rotation={[0, yaw, 0]}>
       {/* Leading Bidder Spotlight & Aura */}
       {leading && (
         <>
@@ -125,9 +238,9 @@ function FranchiseDesk({
         </>
       )}
 
-      {/* Main Desk Tabletop (Height 0.74m) */}
+      {/* Main Desk Tabletop (Height 0.72m) */}
       <mesh position={[0, 0.72, 0]}>
-        <boxGeometry args={[2.0, 0.08, 0.95]} />
+        <boxGeometry args={[2.1, 0.08, 0.95]} />
         <meshStandardMaterial
           color="#152642"
           roughness={0.4}
@@ -137,20 +250,30 @@ function FranchiseDesk({
         />
       </mesh>
 
-      {/* Desk Front Branding Fascia with Team Color */}
-      <mesh position={[0, 0.36, 0.45]}>
-        <boxGeometry args={[1.94, 0.68, 0.06]} />
-        <meshStandardMaterial color={team.color || '#24344e'} roughness={0.45} metalness={0.2} />
+      {/* Desk Front Branding Plate with Team Name & Purse texture (No HTML tags!) */}
+      <mesh position={[0, 0.36, 0.48]}>
+        <planeGeometry args={[1.96, 0.64]} />
+        {deskTexture ? (
+          <meshStandardMaterial map={deskTexture} roughness={0.3} metalness={0.2} />
+        ) : (
+          <meshStandardMaterial color={team.color || '#24344e'} roughness={0.45} metalness={0.2} />
+        )}
       </mesh>
 
-      {/* Glowing Edge Line */}
+      {/* Glowing Edge Border Frame around Front Plate */}
+      <mesh position={[0, 0.36, 0.465]}>
+        <boxGeometry args={[2.02, 0.68, 0.02]} />
+        <meshBasicMaterial color={leading ? '#f5b82e' : selected ? '#38bdf8' : team.color || '#3b82f6'} />
+      </mesh>
+
+      {/* Desk Top Accent Line */}
       <mesh position={[0, 0.74, 0.48]}>
-        <boxGeometry args={[1.98, 0.03, 0.04]} />
+        <boxGeometry args={[2.08, 0.03, 0.04]} />
         <meshBasicMaterial color={leading ? '#f5b82e' : team.color || '#3b82f6'} />
       </mesh>
 
       {/* Desk Legs */}
-      {[-0.92, 0.92].map((lx) => (
+      {[-0.96, 0.96].map((lx) => (
         <group key={lx} position={[lx, 0.34, 0]}>
           <mesh position={[0, 0, -0.36]}>
             <cylinderGeometry args={[0.035, 0.035, 0.68, 8]} />
@@ -163,7 +286,7 @@ function FranchiseDesk({
         </group>
       ))}
 
-      {/* Franchise Chair (Seat at y=0.40m, backrest at z=-0.65m) */}
+      {/* Franchise Chair (Seat at y=0.38m, backrest at z=-0.58m) */}
       <group position={[0, 0, -0.58]}>
         <mesh position={[0, 0.38, 0]}>
           <boxGeometry args={[0.82, 0.07, 0.78]} />
@@ -197,50 +320,6 @@ function FranchiseDesk({
 
       {/* Interactive/Animated Bidding Paddle */}
       <BidPaddle team={team} leading={leading} selected={selected} />
-
-      {/* Team Name & Purse written directly on the front panel of the desk */}
-      <Html
-        position={[0, 0.36, 0.49]}
-        center
-        distanceFactor={14}
-        transform
-        scale={0.16}
-      >
-        <div
-          style={{
-            width: 310,
-            padding: '7px 10px',
-            borderRadius: 8,
-            background: 'rgba(5, 14, 32, 0.94)',
-            border: leading ? '2.5px solid #f5b82e' : '1.5px solid rgba(255,255,255,0.25)',
-            boxShadow: leading ? '0 0 25px rgba(245,184,46,0.6)' : 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontFamily: 'Arial, sans-serif',
-            color: '#fff',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {team.logo ? <img src={team.logo} alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} /> : null}
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.1, letterSpacing: 0.5 }}>{team.shortName}</div>
-              <div style={{ fontSize: 12, color: '#f5b82e', fontWeight: 800, marginTop: 2 }}>
-                ₹{(team.purse / 10000000).toFixed(1)} Cr
-              </div>
-            </div>
-          </div>
-          {leading ? (
-            <span style={{ fontSize: 10, fontWeight: 900, background: '#f5b82e', color: '#000', padding: '3px 8px', borderRadius: 4, letterSpacing: 1 }}>
-              HIGH BID
-            </span>
-          ) : selected ? (
-            <span style={{ fontSize: 9, fontWeight: 900, background: 'rgba(37,139,255,0.4)', color: '#93c5fd', padding: '3px 6px', borderRadius: 4 }}>
-              YOU
-            </span>
-          ) : null}
-        </div>
-      </Html>
     </group>
   );
 }
@@ -254,13 +333,13 @@ function AuctionGavel({ phase }: { phase: string }) {
   });
 
   return (
-    <group ref={ref} position={[0.55, 1.18, 1.25]} rotation={[0, 0, -0.4]}>
+    <group ref={ref} position={[0.26, 1.42, 0.52]} rotation={[0, 0, -0.4]}>
       <mesh rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.045, 0.055, 0.55, 10]} />
+        <cylinderGeometry args={[0.035, 0.045, 0.5, 10]} />
         <meshStandardMaterial color="#8b552d" roughness={0.4} />
       </mesh>
-      <mesh position={[0.26, 0, 0]}>
-        <boxGeometry args={[0.3, 0.22, 0.22]} />
+      <mesh position={[0.24, 0, 0]}>
+        <boxGeometry args={[0.24, 0.18, 0.18]} />
         <meshStandardMaterial color="#c88b43" metalness={0.4} roughness={0.3} />
       </mesh>
     </group>
@@ -520,8 +599,8 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
       <directionalLight position={[12, 11, 8]} intensity={2.0} color="#93c5fd" />
       <directionalLight position={[0, 7, -10]} intensity={1.5} color="#38bdf8" />
 
-      {/* Auctioneer Stage Spotlight */}
-      <spotLight position={[0, 9.5, 4.5]} intensity={4.5} angle={0.45} penumbra={0.3} color="#fff8e7" target-position={[0, 1.2, 0.8]} />
+      {/* Auctioneer Stage Direct Key Spotlight */}
+      <spotLight position={[0, 9.5, 4.0]} intensity={5.5} angle={0.45} penumbra={0.35} color="#fffaf0" target-position={[0, 1.6, -0.2]} />
 
       {/* Studio Floor with Concentric Glowing Stage Rings */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
@@ -529,23 +608,39 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
         <meshStandardMaterial color="#07142b" roughness={0.5} metalness={0.35} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.07, 0]}>
-        <ringGeometry args={[7.8, 8.05, 72]} />
+        <ringGeometry args={[8.8, 9.1, 72]} />
         <meshBasicMaterial color="#167bff" />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]}>
-        <ringGeometry args={[4.8, 5.05, 72]} />
+        <ringGeometry args={[5.2, 5.45, 72]} />
         <meshBasicMaterial color="#f5b82e" />
       </mesh>
 
-      {/* Central Raised Stage Dais (Radius 2.8m, sleek & well-proportioned) */}
-      <mesh position={[0, 0.20, 0.2]}>
-        <cylinderGeometry args={[2.5, 2.8, 0.40, 48]} />
-        <meshStandardMaterial color="#0f2652" roughness={0.35} metalness={0.4} />
-      </mesh>
-      <mesh position={[0, 0.41, 0.2]}>
-        <cylinderGeometry args={[2.35, 2.55, 0.05, 48]} />
-        <meshBasicMaterial color="#f5b82e" />
-      </mesh>
+      {/* Back Row Tiered Riser Platform (Elevation y = 0.38m for Back Row 5 Desks) */}
+      <group position={[0, 0.19, 3.5]}>
+        <mesh>
+          <boxGeometry args={[15.6, 0.38, 2.8]} />
+          <meshStandardMaterial color="#0b1b38" roughness={0.5} metalness={0.3} />
+        </mesh>
+        {/* Front gold edge trim */}
+        <mesh position={[0, 0.19, 1.41]}>
+          <boxGeometry args={[15.62, 0.04, 0.04]} />
+          <meshBasicMaterial color="#f5b82e" />
+        </mesh>
+      </group>
+
+      {/* Central Raised Stage Dais (Radius 2.7m, Elevation y = 0.68m) */}
+      <group position={[0, 0.34, -0.3]}>
+        <mesh>
+          <cylinderGeometry args={[2.7, 3.0, 0.68, 48]} />
+          <meshStandardMaterial color="#0c234b" roughness={0.35} metalness={0.4} />
+        </mesh>
+        {/* Gold Stage Perimeter Ring */}
+        <mesh position={[0, 0.35, 0]}>
+          <cylinderGeometry args={[2.55, 2.75, 0.04, 48]} />
+          <meshBasicMaterial color="#f5b82e" />
+        </mesh>
+      </group>
 
       {/* Big Screen Backwall Architecture */}
       <mesh position={[0, 4.15, -4.35]}>
@@ -572,45 +667,39 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
       {/* 3D Screen with Player Photo, Bid Status & SOLD/UNSOLD celebrations */}
       <AuctionScreen {...props} leadingTeam={leadingTeam} />
 
-      {/* Auctioneer Podium / Lectern - Standing proudly on stage */}
-      <group position={[0, 0.45, 1.3]}>
-        <mesh position={[0, 0.46, 0]}>
-          <boxGeometry args={[1.6, 0.92, 0.75]} />
-          <meshStandardMaterial color="#0a2354" metalness={0.5} roughness={0.3} />
+      {/* Auctioneer Podium / Lectern - Sleek, low waist-height (0.68m) standing at y=0.68 (NO clumsy tags!) */}
+      <group position={[0, 0.68, 0.5]}>
+        <mesh position={[0, 0.34, 0]}>
+          <boxGeometry args={[1.2, 0.68, 0.5]} />
+          <meshStandardMaterial color="#071b40" metalness={0.5} roughness={0.3} />
         </mesh>
-        <mesh position={[0, 0.94, 0]}>
-          <boxGeometry args={[1.72, 0.08, 0.82]} />
-          <meshStandardMaterial color="#f5b82e" emissive="#9a6510" emissiveIntensity={0.4} metalness={0.5} />
+        {/* Sloped Top Lectern Rest with Gold Trim */}
+        <mesh position={[0, 0.69, 0]} rotation={[0.15, 0, 0]}>
+          <boxGeometry args={[1.28, 0.06, 0.56]} />
+          <meshStandardMaterial color="#f5b82e" emissive="#9a6510" emissiveIntensity={0.3} metalness={0.6} />
         </mesh>
-        <Html position={[0, 0.52, 0.4]} center distanceFactor={11}>
-          <div
-            style={{
-              padding: '5px 12px',
-              borderRadius: 6,
-              background: 'rgba(5,20,54,0.95)',
-              border: '1.5px solid #f5b82e',
-              color: '#f5b82e',
-              fontSize: 11,
-              fontWeight: 900,
-              letterSpacing: 2,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            IPL AUCTIONEER
-          </div>
-        </Html>
+        {/* Sleek 3D Gold Inlay Bar */}
+        <mesh position={[0, 0.36, 0.26]}>
+          <boxGeometry args={[0.9, 0.08, 0.02]} />
+          <meshStandardMaterial color="#f5b82e" metalness={0.8} roughness={0.2} />
+        </mesh>
+        {/* Sounding block for gavel */}
+        <mesh position={[0.26, 0.72, 0.06]}>
+          <cylinderGeometry args={[0.11, 0.12, 0.04, 16]} />
+          <meshStandardMaterial color="#451a03" roughness={0.4} metalness={0.3} />
+        </mesh>
       </group>
 
-      {/* Auctioneer 3D Character - Standing on stage platform at y=0.45, clearly visible */}
-      <CharacterErrorBoundary fallback={<AuctionCharacterLoading position={[0, 0.45, 0.45]} color="#f5b82e" />}>
-        <Suspense fallback={<AuctionCharacterLoading position={[0, 0.45, 0.45]} color="#f5b82e" />}>
+      {/* Auctioneer 3D Character - Elevated at y=0.68 on dais, tall stature (1.12 scale), completely visible & unobstructed */}
+      <CharacterErrorBoundary fallback={<AuctionCharacterLoading position={[0, 0.68, -0.1]} color="#f5b82e" />}>
+        <Suspense fallback={<AuctionCharacterLoading position={[0, 0.68, -0.1]} color="#f5b82e" />}>
           <CharacterInstance
             modelUrl={AUCTION_CHARACTER_MODEL}
-            position={[0, 0.45, 0.45]}
+            position={[0, 0.68, -0.1]}
             yaw={0}
             action={phase === 'sold' ? 'victory' : 'auctioneerCall'}
             progress={phase === 'sold' ? 0.45 : 0.35}
-            heightScale={0.96}
+            heightScale={1.12}
             updateFps={24}
             trackBall={false}
             castShadow={false}
@@ -619,7 +708,7 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
       </CharacterErrorBoundary>
       <AuctionGavel phase={phase} />
 
-      {/* 10 IPL Franchise Desks with Delegates Seated & Visible */}
+      {/* 10 IPL Franchise Desks Arranged in Two Rows (5 Front, 5 Back elevated) */}
       {franchises.map((team, index) => (
         <FranchiseDesk
           key={team.id}
@@ -686,7 +775,7 @@ export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps)
         dpr={[0.8, 1.2]}
         shadows={false}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
-        camera={{ position: [0, 5.6, 16.2], fov: 47, near: 0.1, far: 100 }}
+        camera={{ position: [0, 5.5, 15.0], fov: 48, near: 0.1, far: 100 }}
       >
         <AuctionRoomScene {...props} />
       </Canvas>
