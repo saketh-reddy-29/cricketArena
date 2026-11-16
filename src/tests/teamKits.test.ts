@@ -85,4 +85,16 @@ describe('teamKits', () => {
     expect(applyRole(kit, 'fielder', false).helmet).toBe(false);
     expect(applyRole(kit, 'fielder', false).slots.gloves).toBe('#dca98a');
   });
+
+  it('umpire role uses neutral official clothing in every match format and no batting helmet', () => {
+    for (const format of ['TEST', 'ODI', 'T20']) {
+      const official = applyRole(resolveKit('India', format), 'umpire', false);
+      expect(official.helmet).toBe(false);
+      expect(official.slots.jersey).toBe('#f4f4f1');
+      expect(official.slots.sleeves).toBe('#f4f4f1');
+      expect(official.slots.pants).toBe('#111827');
+      expect(official.slots.shoes).toBe('#f8fafc');
+      expect(official.slots.gloves).toBe('#dca98a');
+    }
+  });
 });
