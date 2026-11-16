@@ -35,6 +35,8 @@ export interface KitCharacter {
   helm: THREE.Group | null;
   helmetMat: THREE.MeshStandardMaterial | null;
   grilleMat: THREE.MeshStandardMaterial | null;
+  /** Wide-brim official hat, shown only for the umpire role. */
+  umpireHat: THREE.Group | null;
   hair: THREE.Object3D[];
   bat: Partial<Record<BatPart, THREE.MeshStandardMaterial[]>>;
   kitMaterials: THREE.Material[];
@@ -196,6 +198,7 @@ export function createKitCharacter(model: CricketRigModel, batParts?: Partial<Re
     helm: null,
     helmetMat: null,
     grilleMat: null,
+    umpireHat: null,
     hair: [],
     bat: {},
     kitMaterials: [],
@@ -239,6 +242,28 @@ export function createKitCharacter(model: CricketRigModel, batParts?: Partial<Re
       helm.visible = false;
       headNode.add(helm);
       kc.helm = helm;
+
+      // A separate, light-weight wide-brim official hat. It is attached to the
+      // same head bone as the batter helmet and is toggled by the kit role.
+      const umpireHat = new THREE.Group();
+      const hatMat = new THREE.MeshStandardMaterial({ color: 0x172033, roughness: 0.78 });
+      const bandMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.58 });
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.018, 32), hatMat);
+      brim.position.y = 0.155;
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.112, 0.13, 24), hatMat);
+      crown.position.y = 0.22;
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.113, 0.113, 0.025, 24), bandMat);
+      band.position.y = 0.188;
+      umpireHat.add(brim, crown, band);
+      umpireHat.visible = false;
+      umpireHat.traverse((part) => {
+        if ((part as THREE.Mesh).isMesh) {
+          (part as THREE.Mesh).castShadow = true;
+          (part as THREE.Mesh).receiveShadow = true;
+        }
+      });
+      headNode.add(umpireHat);
+      kc.umpireHat = umpireHat;
     }
 
     // Back-of-shirt number + name decal, attached to the chest bone
@@ -291,6 +316,8 @@ export interface ApplyKitOptions {
   name?: string;
   /** show the helmet (and hide the hair that would poke through the shell) */
   helmet?: boolean;
+  /** show the wide-brim official hat and keep hair clear of its brim */
+  umpire?: boolean;
 }
 
 function paintDecal(kc: KitCharacter, jerseyHex: string, trimHex: string, num: number, name: string) {
@@ -336,8 +363,10 @@ export function applyKitSlots(kc: KitCharacter, slots: Partial<KitSlots>, opts: 
     else kc.decal.visible = false;
   }
   const showHelmet = Boolean(opts.helmet);
+  const showUmpireHat = Boolean(opts.umpire);
   if (kc.helm) kc.helm.visible = showHelmet;
-  kc.hair.forEach((h) => { h.visible = !showHelmet; });
+  if (kc.umpireHat) kc.umpireHat.visible = showUmpireHat;
+  kc.hair.forEach((h) => { h.visible = !showHelmet && !showUmpireHat; });
   (['batHandle', 'batGrip', 'batBlade'] as BatPart[]).forEach((k) => {
     const v = slots[k];
     if (v) (kc.bat[k] ?? []).forEach((mat) => mat.color.set(v));
@@ -360,6 +389,6 @@ export function applyTeamKit(
 ) {
   const kit = resolveKit(country, format, kitVariant);
   const { slots, helmet } = applyRole(kit, role, hasPadsModel);
-  applyKitSlots(character, slots, { helmet, number: print?.number, name: print?.name });
+  applyKitSlots(character, slots, { helmet, umpire: role === 'umpire', number: print?.number, name: print?.name });
   return kit;
 }
