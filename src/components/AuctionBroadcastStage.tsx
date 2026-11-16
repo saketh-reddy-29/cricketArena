@@ -109,114 +109,321 @@ function FranchiseDesk({
   );
 }
 
-function AuctionRoomScene(props: AuctionBroadcastStageProps) {
-  const { franchises, leadingTeamId, selectedTeamId, player, playerImage, currentBid, phase, timer } = props;
+function AuctionGavel({ phase }: { phase: string }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((state, delta) => {
+    if (!ref.current) return;
+    const swing = phase === 'sold' ? Math.sin(state.clock.elapsedTime * 8) * 0.55 : Math.sin(state.clock.elapsedTime * 1.8) * 0.08;
+    ref.current.rotation.z = THREE.MathUtils.damp(ref.current.rotation.z, swing, phase === 'sold' ? 10 : 3, delta);
+  });
   return (
-    <>
-      <color attach="background" args={['#071426']} />
-      <fog attach="fog" args={['#071426', 34, 72]} />
-      <ambientLight intensity={1.45} />
-      <directionalLight position={[-7, 14, 13]} intensity={1.8} />
-      <pointLight position={[0, 8, -4]} intensity={2.2} color="#528dd2" distance={30} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
-        <circleGeometry args={[29, 80]} />
-        <meshStandardMaterial color="#101f35" roughness={0.8} metalness={0.15} />
+    <group ref={ref} position={[1.05, 2.25, 2.0]} rotation={[0, 0, -0.5]}>
+      <mesh rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.065, 0.075, 0.82, 12]} />
+        <meshStandardMaterial color="#8b552d" roughness={0.42} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>
-        <ringGeometry args={[3.1, 3.55, 64]} />
-        <meshBasicMaterial color="#e3b34c" />
+      <mesh position={[0.38, 0, 0]}>
+        <boxGeometry args={[0.42, 0.28, 0.32]} />
+        <meshStandardMaterial color="#c88b43" metalness={0.42} roughness={0.3} />
       </mesh>
-      <mesh position={[0, 0.48, 0]}>
-        <cylinderGeometry args={[2.8, 3.1, 0.9, 48]} />
-        <meshStandardMaterial color="#253b59" roughness={0.4} metalness={0.45} />
+      <mesh position={[-0.38, 0, 0]}>
+        <boxGeometry args={[0.16, 0.22, 0.25]} />
+        <meshStandardMaterial color="#c88b43" metalness={0.35} roughness={0.35} />
       </mesh>
-      <mesh position={[0, 0.98, 0]}>
-        <cylinderGeometry args={[2.45, 2.8, 0.16, 48]} />
-        <meshStandardMaterial color="#f5b82e" emissive="#7d4b0c" emissiveIntensity={0.4} />
-      </mesh>
-      <mesh position={[0, 1.55, -4.2]}>
-        <boxGeometry args={[12, 3.8, 0.4]} />
-        <meshStandardMaterial color="#10243e" roughness={0.35} metalness={0.4} />
-      </mesh>
-      <mesh position={[0, 1.6, -3.97]}>
-        <boxGeometry args={[11.5, 3.25, 0.04]} />
-        <meshBasicMaterial color="#102f53" />
-      </mesh>
-      {franchises.map((team, index) => (
-        <FranchiseDesk key={team.id} team={team} index={index} count={franchises.length} leading={team.id === leadingTeamId} selected={team.id === selectedTeamId} />
-      ))}
-      {/* Existing rigged cricket GLB: franchise representatives and the auctioneer. */}
-      {franchises.map((team, index) => {
-        const leftCount = Math.ceil(franchises.length / 2);
-        const onLeft = index < leftCount;
-        const sideIndex = onLeft ? index : index - leftCount;
-        const sideCount = onLeft ? leftCount : franchises.length - leftCount;
-        const z = sideCount <= 1 ? 0 : -10 + (sideIndex / (sideCount - 1)) * 19;
-        return (
-          <CharacterInstance
-            key={'auction-rep-' + team.id}
-            modelUrl={AUCTION_CHARACTER_MODEL}
-            position={[onLeft ? -10.4 : 10.4, z]}
-            yaw={onLeft ? Math.PI / 2 : -Math.PI / 2}
-            action={team.id === leadingTeamId ? 'handsUp' : 'idle'}
-            progress={team.id === leadingTeamId ? 0.45 : 0.12}
-            team={team.name}
-            format="T20"
-            kitRole="fielder"
-            heightScale={0.78}
-          />
-        );
-      })}
-      <CharacterInstance modelUrl={AUCTION_CHARACTER_MODEL} position={[0, -1.9]} yaw={0} action={phase === 'sold' ? 'victory' : 'handsUp'} progress={phase === 'sold' ? 0.42 : 0.28} heightScale={0.92} />
-      <Html position={[0, 3.25, 0.5]} center distanceFactor={14}>
+    </group>
+  );
+}
+
+function AuctionScreen({
+  player, playerImage, currentBid, phase, timer, leadingTeam,
+}: AuctionBroadcastStageProps & { leadingTeam: DeskTeam | undefined }) {
+  return (
+    <Html position={[0, 4.25, -3.62]} center distanceFactor={12}>
+      <div style={{
+        width: 540, minHeight: 274, padding: 14, boxSizing: 'border-box',
+        display: 'grid', gridTemplateColumns: '132px minmax(0, 1fr) 144px', gap: 14, alignItems: 'center',
+        position: 'relative', color: '#f7fbff', fontFamily: 'Arial,sans-serif',
+        background: 'linear-gradient(135deg, rgba(23,46,119,.98), rgba(5,18,53,.99) 58%, rgba(6,39,105,.98))',
+        border: '2px solid rgba(115,181,255,.95)', borderRadius: 18,
+        boxShadow: '0 0 0 5px rgba(28,72,190,.3), 0 0 34px rgba(44,129,255,.65), 0 16px 38px rgba(0,0,0,.55)',
+      }}>
+        {phase === 'sold' ? (
+          <div style={{
+            position: 'absolute', right: 12, top: 10, transform: 'rotate(-10deg)',
+            border: '3px solid #ff3d50', color: '#ff4053', borderRadius: 7,
+            padding: '4px 10px', fontSize: 22, fontWeight: 1000, letterSpacing: 2,
+            background: 'rgba(5,10,35,.82)', textShadow: '0 0 10px rgba(255,20,50,.35)',
+          }}>SOLD</div>
+        ) : null}
         <div style={{
-          width: 220, padding: 10, borderRadius: 14,
-          background: 'linear-gradient(160deg, rgba(13,29,50,.98), rgba(3,10,22,.97))',
-          border: '1px solid rgba(245,184,46,.72)',
-          boxShadow: '0 0 34px rgba(245,184,46,.22),0 12px 32px rgba(0,0,0,.55)',
-          color: '#fff', textAlign: 'center', fontFamily: 'Arial,sans-serif',
+          height: 176, borderRadius: 10, overflow: 'hidden',
+          border: '2px solid rgba(245,184,46,.95)', background: '#10244c',
+          boxShadow: '0 0 18px rgba(245,184,46,.2)',
         }}>
           {player ? (
-            <>
-              <img
-                src={playerImage || getPlayerAvatar(player.name)}
-                alt={player.name}
-                onError={(event) => {
-                  event.currentTarget.onerror = null;
-                  event.currentTarget.src = getPlayerAvatar(player.name);
-                }}
-                style={{
-                  display: 'block', width: 112, height: 132, borderRadius: 10,
-                  objectFit: 'cover', margin: '0 auto 8px',
-                  border: '2px solid rgba(245,184,46,.8)', background: '#162238',
-                }}
-              />
-              <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.15 }}>{player.name}</div>
-              <div style={{ color: '#aabbd1', fontSize: 10, marginTop: 3 }}>
-                {player.role || 'Player'} · {player.nationality || 'Squad player'}
-              </div>
-            </>
-          ) : <div style={{ padding: '34px 0', color: '#dce7f5', fontWeight: 900 }}>PLAYER AUCTION</div>}
-          <div style={{ marginTop: 9, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,.12)' }}>
-            <div style={{ color: '#f5b82e', fontSize: 9, fontWeight: 900, letterSpacing: 1.4 }}>
-              {phase === 'bidding' ? 'LIVE BIDDING' : phase.toUpperCase()}
-            </div>
-            <div style={{ fontSize: 23, fontWeight: 900, marginTop: 2 }}>₹{(currentBid / 10000000).toFixed(2)} Cr</div>
-            {phase === 'bidding' ? <div style={{ color: timer <= 5 ? '#fb7185' : '#b7c7da', fontSize: 10 }}>{timer}s remaining</div> : null}
+            <img src={playerImage || getPlayerAvatar(player.name)} alt={player.name}
+              onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = getPlayerAvatar(player.name); }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#a9c6ff', fontWeight: 900 }}>PLAYER</div>
+          )}
+        </div>
+        <div style={{ minWidth: 0, paddingTop: phase === 'sold' ? 25 : 0 }}>
+          <div style={{ color: '#83c6ff', fontSize: 10, fontWeight: 900, letterSpacing: 2.8 }}>CRIC ARENA · LIVE PLAYER AUCTION</div>
+          <div style={{ fontSize: 25, lineHeight: 1.08, fontWeight: 1000, marginTop: 8, textShadow: '0 2px 12px rgba(0,0,0,.45)' }}>
+            {player?.name || 'PLAYER NOMINATION'}
           </div>
+          <div style={{ color: '#d2def7', fontSize: 12, marginTop: 6 }}>
+            {(player?.role || 'Awaiting player') + '  ·  ' + (player?.nationality || 'Auction pool')}
+          </div>
+          <div style={{ marginTop: 13, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 10px', borderRadius: 7, background: 'rgba(2,10,31,.72)', border: '1px solid rgba(114,181,255,.38)' }}>
+            <span style={{ width: 8, height: 8, borderRadius: 10, background: phase === 'bidding' ? '#ff334b' : '#f5b82e', display: 'inline-block' }} />
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 10, letterSpacing: 1.2 }}>{phase === 'bidding' ? 'BIDDING LIVE' : phase.toUpperCase()}</span>
+          </div>
+          {leadingTeam ? <div style={{ color: '#ffdb73', fontSize: 11, fontWeight: 900, marginTop: 8 }}>LEADING: {leadingTeam.shortName}</div> : null}
+        </div>
+        <div style={{ textAlign: 'center', padding: '15px 9px', borderRadius: 12, background: 'linear-gradient(180deg, rgba(2,14,42,.94), rgba(12,25,57,.98))', border: '1px solid rgba(245,184,46,.75)', boxShadow: 'inset 0 0 15px rgba(35,111,255,.13)' }}>
+          <div style={{ color: '#b9cce9', fontSize: 9, fontWeight: 900, letterSpacing: 1.4 }}>CURRENT BID</div>
+          <div style={{ color: '#fff', fontSize: 27, lineHeight: 1.1, fontWeight: 1000, marginTop: 8, whiteSpace: 'nowrap' }}>₹{(currentBid / 10000000).toFixed(2)} Cr</div>
+          <div style={{ color: timer <= 5 ? '#ff6579' : '#d8e5fa', fontSize: 11, marginTop: 8, fontWeight: 800 }}>{phase === 'bidding' ? timer + 's remaining' : phase === 'sold' ? 'PLAYER SOLD' : 'NEXT PLAYER'}</div>
+        </div>
+      </div>
+    </Html>
+  );
+}
+
+function SideAuctionBoard({ side, title, subtitle }: { side: 'left' | 'right'; title: string; subtitle: string }) {
+  const x = side === 'left' ? -19.5 : 19.5;
+  return (
+    <>
+      <mesh position={[x, 3.9, -4.4]} rotation={[0, side === 'left' ? 0.12 : -0.12, 0]}>
+        <boxGeometry args={[7.2, 4.1, 0.36]} />
+        <meshStandardMaterial color="#061634" metalness={0.55} roughness={0.28} />
+      </mesh>
+      <mesh position={[x, 3.9, -4.18]} rotation={[0, side === 'left' ? 0.12 : -0.12, 0]}>
+        <boxGeometry args={[6.82, 3.73, 0.035]} />
+        <meshBasicMaterial color="#0b245e" />
+      </mesh>
+      <Html position={[x, 3.9, -4.12]} center distanceFactor={12}>
+        <div style={{
+          width: 220, padding: '18px 12px', textAlign: 'center',
+          fontFamily: 'Arial,sans-serif', color: '#fff',
+          background: 'linear-gradient(145deg, rgba(7,27,76,.98), rgba(4,13,42,.98))',
+          border: '1px solid rgba(65,164,255,.72)', borderRadius: 10,
+          boxShadow: '0 0 22px rgba(0,112,255,.3)',
+        }}>
+          <div style={{ color: '#9dceff', fontSize: 11, fontWeight: 900, letterSpacing: 3 }}>{title}</div>
+          <div style={{ color: '#fff', fontSize: 21, fontWeight: 1000, marginTop: 7 }}>{subtitle}</div>
+          <div style={{ color: '#f5b82e', fontSize: 9, fontWeight: 900, letterSpacing: 2, marginTop: 10 }}>CRIC ARENA</div>
         </div>
       </Html>
     </>
   );
 }
 
-export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps) {
+function AuctionRoomScene(props: AuctionBroadcastStageProps) {
+  const { franchises, leadingTeamId, selectedTeamId, player, playerImage, currentBid, phase, timer } = props;
+  const leadingTeam = franchises.find((team) => team.id === leadingTeamId);
   return (
-    <div className="relative h-[430px] w-full overflow-hidden rounded-3xl border border-[#e6b34b]/30 bg-[#071426] shadow-[0_20px_60px_rgba(0,0,0,0.45)] sm:h-[500px]">
-      <div className="pointer-events-none absolute left-4 top-3 z-10 rounded-lg border border-[#f5b82e]/40 bg-[#071426]/85 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-[#f5b82e] backdrop-blur">
+    <>
+      <color attach="background" args={['#030a1c']} />
+      <fog attach="fog" args={['#071426', 42, 82]} />
+      <ambientLight intensity={1.15} />
+      <directionalLight position={[-8, 15, 12]} intensity={1.45} />
+      <pointLight position={[0, 10, -5]} intensity={2.2} color="#397cff" distance={42} />
+      <pointLight position={[-16, 7, 2]} intensity={1.9} color="#147bff" distance={27} />
+      <pointLight position={[16, 7, 2]} intensity={1.8} color="#18a7ff" distance={27} />
+      <pointLight position={[0, 8, 15]} intensity={1.2} color="#f5a623" distance={24} />
+
+      {/* Main arena floor and concentric broadcast stage. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.18, 0]}>
+        <circleGeometry args={[31, 96]} />
+        <meshStandardMaterial color="#07142b" roughness={0.62} metalness={0.28} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.12, 0]}>
+        <ringGeometry args={[8.3, 8.55, 96]} />
+        <meshBasicMaterial color="#167bff" />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
+        <ringGeometry args={[5.3, 5.55, 96]} />
+        <meshBasicMaterial color="#f5b82e" />
+      </mesh>
+      <mesh position={[0, 0.18, 0.7]}>
+        <cylinderGeometry args={[6.3, 6.7, 0.55, 72]} />
+        <meshStandardMaterial color="#102b5c" roughness={0.34} metalness={0.5} />
+      </mesh>
+      <mesh position={[0, 0.48, 0.7]}>
+        <cylinderGeometry args={[5.9, 6.25, 0.12, 72]} />
+        <meshBasicMaterial color="#f5b82e" />
+      </mesh>
+      <mesh position={[0, 0.57, 0.7]}>
+        <cylinderGeometry args={[5.65, 5.9, 0.08, 72]} />
+        <meshBasicMaterial color="#0a74ff" />
+      </mesh>
+
+      {/* Rear LED wall, large player screen and lit architectural ribs. */}
+      <mesh position={[0, 4.15, -4.35]}>
+        <boxGeometry args={[14.2, 6.1, 0.65]} />
+        <meshStandardMaterial color="#071633" metalness={0.65} roughness={0.24} />
+      </mesh>
+      <mesh position={[0, 4.15, -3.98]}>
+        <boxGeometry args={[13.55, 5.55, 0.05]} />
+        <meshBasicMaterial color="#102d75" />
+      </mesh>
+      {[-7.55, 7.55].map((x) => (
+        <group key={x} position={[x, 3.65, -1.8]}>
+          <mesh>
+            <boxGeometry args={[0.3, 7.9, 0.5]} />
+            <meshStandardMaterial color="#172d69" metalness={0.4} roughness={0.32} emissive="#123a8a" emissiveIntensity={0.45} />
+          </mesh>
+          <mesh position={[0, 0, 0.29]}>
+            <boxGeometry args={[0.07, 7.2, 0.04]} />
+            <meshBasicMaterial color="#ffbd55" />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[0, 7.25, -2.2]}>
+        <boxGeometry args={[18, 0.28, 0.7]} />
+        <meshStandardMaterial color="#1f3778" emissive="#0b4cbb" emissiveIntensity={0.7} metalness={0.45} />
+      </mesh>
+      <mesh position={[0, 7.08, -1.82]}>
+        <boxGeometry args={[17.5, 0.055, 0.05]} />
+        <meshBasicMaterial color="#41b5ff" />
+      </mesh>
+
+      <SideAuctionBoard side="left" title="IPL" subtitle="PLAYER AUCTION" />
+      <SideAuctionBoard side="right" title="LIVE" subtitle="BIDDING ROOM" />
+
+      <AuctionScreen {...props} leadingTeam={leadingTeam} />
+
+      {/* Auctioneer podium with a raised fascia and a clear front-facing nameplate. */}
+      <mesh position={[0, 1.05, 3.25]}>
+        <boxGeometry args={[5.8, 1.55, 1.55]} />
+        <meshStandardMaterial color="#071b43" metalness={0.5} roughness={0.29} />
+      </mesh>
+      <mesh position={[0, 1.85, 3.25]}>
+        <boxGeometry args={[5.95, 0.13, 1.66]} />
+        <meshStandardMaterial color="#f5b82e" emissive="#8d5b0c" emissiveIntensity={0.45} metalness={0.5} />
+      </mesh>
+      <mesh position={[0, 1.12, 2.45]}>
+        <boxGeometry args={[4.9, 0.9, 0.04]} />
+        <meshBasicMaterial color="#0a2d72" />
+      </mesh>
+      <Html position={[0, 1.15, 2.39]} center distanceFactor={12}>
+        <div style={{
+          width: 120, padding: '7px 9px', textAlign: 'center', borderRadius: 8,
+          color: '#fff', background: 'rgba(5,20,54,.94)', border: '1px solid rgba(245,184,46,.78)',
+          font: '900 16px Arial,sans-serif', letterSpacing: 2,
+        }}>CA · AUCTION</div>
+      </Html>
+
+      {/* Team desks in two banks, preserving the ten franchises and their own kit colours. */}
+      {franchises.map((team, index) => (
+        <FranchiseDesk key={team.id} team={team} index={index} count={franchises.length} leading={team.id === leadingTeamId} selected={team.id === selectedTeamId} />
+      ))}
+
+      {/* Reuse the exact rigged GLB already shipped for match players. Background reps update at 8 Hz;
+          the active bidder gets 16 Hz. The auctioneer gets a responsive 24 Hz pose update. */}
+      {franchises.map((team, index) => {
+        const leftCount = Math.ceil(franchises.length / 2);
+        const onLeft = index < leftCount;
+        const sideIndex = onLeft ? index : index - leftCount;
+        const sideCount = onLeft ? leftCount : franchises.length - leftCount;
+        const z = sideCount <= 1 ? 0 : -10 + (sideIndex / (sideCount - 1)) * 19;
+        const activeBidder = team.id === leadingTeamId;
+        return (
+          <CharacterInstance
+            key={'auction-rep-' + team.id}
+            modelUrl={AUCTION_CHARACTER_MODEL}
+            position={[onLeft ? -14.05 : 14.05, z]}
+            yaw={onLeft ? 0 : Math.PI}
+            action={activeBidder ? 'handsUp' : 'idle'}
+            progress={activeBidder ? 0.46 : 0.12}
+            team={team.name}
+            format="T20"
+            kitRole="fielder"
+            heightScale={0.68}
+            animationFps={activeBidder ? 16 : 8}
+          />
+        );
+      })}
+
+      <CharacterInstance
+        modelUrl={AUCTION_CHARACTER_MODEL}
+        position={[0, 2.05]}
+        yaw={Math.PI / 2}
+        action={phase === 'sold' ? 'victory' : 'handsUp'}
+        progress={phase === 'sold' ? 0.45 : 0.34}
+        heightScale={0.92}
+        animationFps={24}
+      />
+      <AuctionGavel phase={phase} />
+
+      {/* Foreground broadcast floor graphics and audience-side seating rails. */}
+      {[-1, 1].map((side) => (
+        <group key={side} position={[side * 22, 0, 7]}>
+          <mesh position={[0, 1.1, 0]}>
+            <boxGeometry args={[0.24, 2.2, 18]} />
+            <meshStandardMaterial color="#102b5c" metalness={0.3} roughness={0.5} />
+          </mesh>
+          <mesh position={[0, 2.25, 0]}>
+            <boxGeometry args={[0.3, 0.07, 18]} />
+            <meshBasicMaterial color={side < 0 ? "#247cff" : "#f5b82e"} />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+
+  React.useEffect(() => {
+    const syncFullscreen = () => setIsFullscreen(document.fullscreenElement === stageRef.current);
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    const element = stageRef.current;
+    if (!element) return;
+    try {
+      if (document.fullscreenElement === element) await document.exitFullscreen();
+      else await element.requestFullscreen();
+    } catch (error) {
+      console.warn('Auction fullscreen is unavailable in this browser:', error);
+    }
+  };
+
+  return (
+    <div
+      ref={stageRef}
+      className={isFullscreen
+        ? 'relative h-screen w-screen overflow-hidden rounded-none bg-[#030a1c]'
+        : 'relative h-[500px] w-full overflow-hidden rounded-3xl border border-[#e6b34b]/30 bg-[#030a1c] shadow-[0_24px_70px_rgba(0,0,0,0.5)] sm:h-[620px]'}
+    >
+      <div className="pointer-events-none absolute left-4 top-3 z-20 rounded-lg border border-cyan-300/40 bg-[#071426]/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 backdrop-blur">
         CRIC ARENA · LIVE AUCTION BROADCAST
       </div>
-      <Canvas dpr={[0.55, 0.85]} gl={{ antialias: false, powerPreference: 'high-performance' }} camera={{ position: [0, 11, 30], fov: 48, near: 0.1, far: 100 }}>
+      <div className="pointer-events-none absolute right-24 top-3 z-20 flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+        <span className="h-2 w-2 rounded-full bg-white animate-pulse" /> LIVE
+      </div>
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        className="absolute right-4 top-3 z-30 rounded-lg border border-white/25 bg-[#071426]/95 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-lg hover:bg-blue-900"
+        aria-label={isFullscreen ? 'Exit fullscreen auction' : 'View auction fullscreen'}
+      >
+        {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+      </button>
+      <Canvas
+        dpr={[0.55, 0.85]}
+        shadows={false}
+        gl={{ antialias: false, powerPreference: 'high-performance' }}
+        camera={{ position: [0, 10.5, 31], fov: 48, near: 0.1, far: 100 }}
+      >
         <Suspense fallback={null}>
           <AuctionRoomScene {...props} />
         </Suspense>
