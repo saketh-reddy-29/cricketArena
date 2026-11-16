@@ -94,7 +94,11 @@ export type CricketArenaAction =
   | 'appeal'
   | 'umpireOut'
   | 'umpireFour'
-  | 'umpireSix';
+  | 'umpireSix'
+  | 'umpireNotOut'
+  | 'umpireWide'
+  | 'umpireNoBall'
+  | 'umpireDeadBall';
 
 export const CRICKET_ARENA_ACTIONS: readonly CricketArenaAction[] = [
   'idle',
@@ -167,6 +171,10 @@ export const CRICKET_ARENA_ACTIONS: readonly CricketArenaAction[] = [
   'umpireOut',
   'umpireFour',
   'umpireSix',
+  'umpireNotOut',
+  'umpireWide',
+  'umpireNoBall',
+  'umpireDeadBall',
 ] as const;
 
 type Keyframe = readonly [number, Partial<CricketArenaPose>];
@@ -641,12 +649,50 @@ export function getCricketArenaPose(
       [1, { rhx: 0.15, rhy: 2.15 }],
     ], t);
   } else if (action === 'umpireFour') {
-    pose = { rhx: 0.5 + Math.sin(clock * 10) * 0.25, rhy: 1.3 };
+    // Boundary-four signal: both arms sweep horizontally across the chest.
+    const sweep = Math.sin(clock * 8.5) * 0.22;
+    pose = {
+      lean: 0,
+      lhx: 0.72 + sweep,
+      lhy: 1.42,
+      rhx: -0.62 - sweep,
+      rhy: 1.42,
+      latL: 0.24,
+      latR: -0.24,
+    };
   } else if (action === 'umpireSix') {
+    // Six: both arms held vertically above the head.
     pose = interpolateKeyframes([
       [0, REST],
-      [0.4, { lhx: 0.15, lhy: 2.15, rhx: 0.35, rhy: 2.15 }],
-      [1, { lhx: 0.15, lhy: 2.15, rhx: 0.35, rhy: 2.15 }],
+      [0.35, { lean: -0.04, lhx: 0.12, lhy: 2.15, rhx: 0.32, rhy: 2.15, latL: 0.08, latR: -0.08 }],
+      [1, { lean: -0.04, lhx: 0.12, lhy: 2.15, rhx: 0.32, rhy: 2.15, latL: 0.08, latR: -0.08 }],
+    ], t);
+  } else if (action === 'umpireNotOut') {
+    // Not out: both arms extend sideways, palms open.
+    pose = interpolateKeyframes([
+      [0, REST],
+      [0.35, { lhx: 0.95, lhy: 1.42, rhx: 0.98, rhy: 1.42, latL: 0.32, latR: -0.32 }],
+      [1, { lhx: 0.95, lhy: 1.42, rhx: 0.98, rhy: 1.42, latL: 0.32, latR: -0.32 }],
+    ], t);
+  } else if (action === 'umpireWide') {
+    // Wide: both arms extend horizontally and stay clearly separated from the torso.
+    pose = interpolateKeyframes([
+      [0, REST],
+      [0.35, { lhx: 1.0, lhy: 1.36, rhx: 1.02, rhy: 1.36, latL: 0.38, latR: -0.38 }],
+      [1, { lhx: 1.0, lhy: 1.36, rhx: 1.02, rhy: 1.36, latL: 0.38, latR: -0.38 }],
+    ], t);
+  } else if (action === 'umpireNoBall') {
+    // No-ball: one arm extended horizontally at shoulder height.
+    pose = interpolateKeyframes([
+      [0, REST],
+      [0.35, { lhx: 0.12, lhy: 0.9, rhx: 1.05, rhy: 1.4, latR: -0.32 }],
+      [1, { lhx: 0.12, lhy: 0.9, rhx: 1.05, rhy: 1.4, latR: -0.32 }],
+    ], t);
+  } else if (action === 'umpireDeadBall') {
+    pose = interpolateKeyframes([
+      [0, REST],
+      [0.35, { lhx: 0.95, lhy: 1.35, rhx: 0.98, rhy: 1.35, latL: 0.28, latR: -0.28 }],
+      [1, { lhx: 0.95, lhy: 1.35, rhx: 0.98, rhy: 1.35, latL: 0.28, latR: -0.28 }],
     ], t);
   } else if (action === 'appeal') {
     pose = interpolateKeyframes([
