@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { 
   Home, Radio, Play, Trophy, Calendar, Video, Users, User, Gavel, 
   BarChart3, Award, BookmarkCheck, Save, Settings, ChevronRight, Sparkles,
-  Shield, Bell, ExternalLink, Zap
+  Shield, Bell, ExternalLink, Zap,
+  Target,
+  Shirt,
 } from 'lucide-react';
 import { useGameStore, GameState, ArenaTab } from '../../stores/useGameStore';
 import { resolveTeamLogoUrl } from '../../lib/teamLogos';
@@ -16,6 +18,9 @@ export type NavItemKey =
   | 'play_now'
   | 'tournaments'
   | 'fixtures'
+  | 'kits'
+  | 'world_cup'
+  | 'practice'
   | 'live_matches'
   | 'teams'
   | 'players'
@@ -63,6 +68,9 @@ export default function GlobalAppHeader() {
     if (gameState === GameState.ACHIEVEMENTS) return 'achievements';
     if (gameState === GameState.SETTINGS) return 'settings';
     if (gameState === GameState.FIXTURES) return 'fixtures';
+    if (gameState === GameState.KIT_LAB) return 'kits';
+    if (gameState === GameState.WORLD_CUP) return 'world_cup';
+    if (gameState === GameState.PRACTICE) return 'practice';
 
     if (gameState === GameState.ARENA_HUB) {
       if (activeTab === 'AUCTION') return 'auction';
@@ -103,6 +111,15 @@ export default function GlobalAppHeader() {
         break;
       case 'tournaments':
         setGameState(GameState.LANDING);
+        break;
+      case 'kits':
+        setGameState(GameState.KIT_LAB);
+        break;
+      case 'world_cup':
+        setGameState(GameState.WORLD_CUP);
+        break;
+      case 'practice':
+        setGameState(GameState.PRACTICE);
         break;
       case 'fixtures':
         setGameState(GameState.FIXTURES);
@@ -150,6 +167,9 @@ export default function GlobalAppHeader() {
     { key: 'play_now', label: 'Play Now', icon: Play },
     { key: 'tournaments', label: 'Tournaments', icon: Trophy },
     { key: 'fixtures', label: 'Fixtures', icon: Calendar },
+    { key: 'world_cup', label: 'World Cup', icon: Trophy },
+    { key: 'practice', label: 'Practice', icon: Target },
+    { key: 'kits', label: 'Kits', icon: Shirt },
     { key: 'live_matches', label: 'Live Matches', icon: Video },
     { key: 'teams', label: 'Teams', icon: Shield },
     { key: 'players', label: 'Players', icon: User },

@@ -674,6 +674,9 @@ export default function MatchSimulation() {
                           striker={players.find(p => p.id === strikerId) || null}
                           nonStriker={players.find(p => p.id === nonStrikerId) || null}
                           bowler={players.find(p => p.id === currentBowlerId) || null}
+                          strikerStats={strikerId ? activeInnings?.batsmen?.[strikerId] ?? { runs: 0, balls: 0 } : null}
+                          nonStrikerStats={nonStrikerId ? activeInnings?.batsmen?.[nonStrikerId] ?? { runs: 0, balls: 0 } : null}
+                          bowlerStats={currentBowlerId ? activeInnings?.bowlers?.[currentBowlerId] ?? { wickets: 0, runs: 0, balls: 0 } : null}
                           lastBall={lastBall ? { ...lastBall, runs: lastBall.runs || 0 } : null}
                           ballCount={activeInnings?.balls || 0}
                           format={(format as ArenaFormat) || 'T20'}

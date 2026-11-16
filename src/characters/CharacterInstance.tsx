@@ -1,9 +1,11 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { buildCharacterRig, CricketRigModel } from './CharacterRig';
 import { CricketArenaAction, getCricketArenaPose } from '../lib/cricketArenaAnimations';
+import { applyTeamKit, createKitCharacter } from './kitMaterial';
+import { KitFormat, KitRole, KitVariant } from './teamKits';
 
 export interface CharacterInstanceProps {
   modelUrl: string;
@@ -13,8 +15,22 @@ export interface CharacterInstanceProps {
   progress: number;
   hasBat?: boolean;
   isLeftHanded?: boolean;
+  /** Uniform scale from the player's height (1 = the model's nominal 182 cm). Never distorts proportions. */
+  heightScale?: number;
+  /** Receives the world position of the bat blade every frame (used to make the ball meet the bat). */
+  batBladeRef?: React.MutableRefObject<THREE.Vector3 | null>;
   ballPos?: [number, number, number];
   showDebugSkeleton?: boolean;
+  /** Team (country / franchise) whose kit this player wears. Omit to keep the model's original look. */
+  team?: string;
+  /** Match format: TEST = whites, ODI = team colours, T20/IPL = colour-blocked kit */
+  format?: KitFormat | string;
+  kitVariant?: KitVariant;
+  /** batter / keeper wear a helmet; fielders do not */
+  kitRole?: KitRole;
+  /** Shirt number and surname printed on the back */
+  jerseyNumber?: number;
+  jerseyName?: string;
 }
 
 export function CharacterInstance({
@@ -25,8 +41,16 @@ export function CharacterInstance({
   progress,
   hasBat = false,
   isLeftHanded = false,
+  heightScale = 1,
+  batBladeRef,
   ballPos,
   showDebugSkeleton = false,
+  team,
+  format,
+  kitVariant = 'home',
+  kitRole = 'fielder',
+  jerseyNumber,
+  jerseyName,
 }: CharacterInstanceProps) {
   const { scene } = useGLTF(modelUrl);
   const model: CricketRigModel = useMemo(() => buildCharacterRig(scene), [scene]);
@@ -74,6 +98,37 @@ export function CharacterInstance({
     group.add(handle, grip, blade, spine);
     return group;
   }, []);
+
+  // Per-character kit state (own materials, helmet gear, bat colours). Built once per instance.
+  const kit = useMemo(() => {
+    const parts: Record<string, THREE.Mesh[]> = { batHandle: [], batGrip: [], batBlade: [] };
+    batGroup.children.forEach((child, i) => {
+      const mesh = child as THREE.Mesh;
+      if (i === 0) parts.batHandle.push(mesh);
+      else if (i === 1) parts.batGrip.push(mesh);
+      else parts.batBlade.push(mesh);
+    });
+    return createKitCharacter(model, parts);
+  }, [model, batGroup]);
+
+  const hasPadsModel = modelUrl.includes('sports_character');
+
+  useEffect(() => {
+    if (!team) return;
+    applyTeamKit(kit, team, format, kitVariant, kitRole, hasPadsModel, { number: jerseyNumber, name: jerseyName });
+  }, [kit, team, format, kitVariant, kitRole, hasPadsModel, jerseyNumber, jerseyName]);
+
+  // Feet that must never sink below the standing floor (keeper low / ground-fielding clips dipped ~9 cm)
+  const feet = useMemo(() => {
+    const idx = ['Left_Foot', 'Right_Foot', 'Left_Toes', 'Right_Toes']
+      .map((n) => model.description.findIndex((d: { n?: string }) => d.n === n))
+      .filter((i) => i >= 0);
+    return {
+      nodes: idx.map((i) => model.nodes[model.description[i].si]),
+      floor: idx.length ? Math.min(...idx.map((i) => model.description[i].wp[1])) : 0,
+      v: new THREE.Vector3(),
+    };
+  }, [model]);
 
   useFrame((state, delta) => {
     const root = rootRef.current;
@@ -130,6 +185,20 @@ export function CharacterInstance({
       hipsNode.position.set(output.hipsLocal[0], output.hipsLocal[1], output.hipsLocal[2]);
     }
 
+    // Ground clamp: lift the whole model so the lowest foot/toe never goes below the standing floor.
+    if (feet.nodes.length) {
+      model.scene.position.y = 0;
+      model.scene.updateMatrixWorld(true);
+      let minY = Infinity;
+      for (const n of feet.nodes) {
+        n.getWorldPosition(feet.v);
+        model.scene.worldToLocal(feet.v);
+        if (feet.v.y < minY) minY = feet.v.y;
+      }
+      const deficit = feet.floor - minY;
+      model.scene.position.y = deficit > 0.002 ? deficit : 0;
+    }
+
     // Update Bat position attached to hands
     const bat = batRef.current;
     if (bat && hasBat) {
@@ -148,6 +217,11 @@ export function CharacterInstance({
           isTwoHand ? (output.palmL[2] + output.palmR[2]) * 0.5 : palm[2]
         );
         bat.rotation.set(0, 0, ba);
+      }
+      // Publish the blade position so the ball can meet it at contact
+      if (batBladeRef && isGripping && batGroup.children[2]) {
+        if (!batBladeRef.current) batBladeRef.current = new THREE.Vector3();
+        batGroup.children[2].getWorldPosition(batBladeRef.current);
       }
     }
 
@@ -204,7 +278,7 @@ export function CharacterInstance({
 
   return (
     <group ref={rootRef} position={[position[0], 0, position[1]]}>
-      <group ref={modelWrapperRef} scale={model.rig.S}>
+      <group ref={modelWrapperRef} scale={model.rig.S * heightScale}>
         <primitive object={model.scene} />
         {hasBat && <primitive object={batGroup} ref={batRef} />}
       </group>

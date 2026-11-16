@@ -217,7 +217,11 @@ export interface Fixture {
   /** Full persisted pitch/ground/weather/toss-report bundle, seeded per fixture. */
   conditionReport?: MatchConditionReport;
   isPlayoff?: boolean;
-  playoffType?: 'Qualifier 1' | 'Eliminator' | 'Qualifier 2' | 'Final';
+  playoffType?: 'Qualifier 1' | 'Eliminator' | 'Qualifier 2' | 'Semi-Final' | 'Final';
+  /** World Cup stage (group games, semi-finals, final) */
+  stage?: 'GROUP' | 'SEMI_FINAL' | 'FINAL';
+  /** World Cup group letter (A, B ...) for group-stage fixtures */
+  group?: string;
   venue?: string;
   startTime?: number;
   endTime?: number;

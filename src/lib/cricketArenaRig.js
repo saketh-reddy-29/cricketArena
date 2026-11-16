@@ -101,7 +101,35 @@
     function clearPt(p, ra, cap) { const q = segPt(p, cap.a, cap.b), v = sub(p, q.c), d = len(v); return { m: d - (ra + cap.r), n: d > 1e-6 ? mul(v, 1 / d) : [0, 0, 1] }; }
     const rot3 = (q, v) => qrot(q, v);
 
+    /* Collision-aware wrapper: if a deep crouch drives a thigh/shin through the torso, raise the hips (shallower
+       crouch) step by step until the limbs clear. Only runs for poses that actually penetrate. */
     function solve(p, st, dt) {
+      const out0 = solveCore(p, st, dt);
+      const LIMIT = -0.006;
+      if (out0.dbg.legBody >= LIMIT) return out0;
+      let best = { o: out0, st: null, m: out0.dbg.legBody };
+      /* stage 1: shallower crouch (hips up) */
+      if (p.crouch > 0) {
+        for (const f of [0.88, 0.76, 0.64, 0.52, 0.4, 0.28, 0.16, 0]) {
+          const st2 = JSON.parse(JSON.stringify(st));
+          const o2 = solveCore(Object.assign({}, p, { crouch: p.crouch * f }), st2, dt);
+          if (o2.dbg.legBody > best.m) best = { o: o2, st: st2, m: o2.dbg.legBody };
+          if (o2.dbg.legBody >= LIMIT) { Object.assign(st, st2); return o2; }
+        }
+      }
+      /* stage 2: lower the knee drive (foot lift) and ease the forward lean so the front knee clears the belly */
+      const base = best.st ? Object.assign({}, p, { crouch: 0 }) : p;
+      for (const f of [0.85, 0.7, 0.55, 0.4, 0.25, 0.1]) {
+        const st2 = JSON.parse(JSON.stringify(st));
+        const q = Object.assign({}, base, { lfy: (base.lfy || 0) * f, rfy: (base.rfy || 0) * f, lean: (base.lean || 0) * (0.5 + 0.5 * f) });
+        const o2 = solveCore(q, st2, dt);
+        if (o2.dbg.legBody > best.m) best = { o: o2, st: st2, m: o2.dbg.legBody };
+        if (o2.dbg.legBody >= LIMIT) { Object.assign(st, st2); return o2; }
+      }
+      if (best.st) Object.assign(st, best.st);
+      return best.o;
+    }
+    function solveCore(p, st, dt) {
       st = st || (st = {}); dt = dt || 1 / 60;
       let key = ''; for (const k in p) key += (typeof p[k] === 'number' ? Math.round(p[k] * 2000) : p[k]) + ','; if (st.key === key && st.res) return st.res; /* unchanged pose: reuse */ st.phi = st.phi || { L: 0, R: 0 }; st.corr = st.corr || { L: [0, 0, 0], R: [0, 0, 0] }; st.baOff = st.baOff || 0; st.hz = st.hz || 0;
       const kS = 1 - Math.exp(-dt * 16);
@@ -191,7 +219,7 @@
         const proj0 = projectPalm(Tg, g, other), cr = sub(proj0, Tg);
         st.corr[s] = add(mul(st.corr[s], 1 - kS), mul(cr, kS));
         Tg = projectPalm(add(Tg, st.corr[s]), g, other);
-        for (let attempt = 0; attempt < 8; attempt++) {
+        for (let attempt = 0; attempt < 24; attempt++) {
           const u0 = nrm(sub(Tg, shoulder)); let Wt = sub(Tg, mul(u0, A.po));
           let dd = len(sub(Wt, shoulder)); if (dd < minD) Wt = add(shoulder, mul(nrm(sub(Wt, shoulder)), minD));
           const chord = nrm(sub(Wt, shoulder)); let cand = [];
@@ -213,7 +241,7 @@
           if (ok.length) { best = ok[0]; break; }
           cand.sort((x, y) => y.pen - x.pen); best = cand[0];
           /* every elbow position collides: move the hand out of the body and solve again (never through the torso) */
-          const pu = best.ev.push; if (pu) Tg = add(Tg, mul(pu.n, Math.min(0.05, -best.pen + 0.006)));
+          const pu = best.ev.push; if (pu) Tg = add(Tg, mul(pu.n, Math.min(0.10, -best.pen * 1.25 + 0.006)));
         }
         st.phi[s] = best.a * D2R;
         const E = best.lm.E, Wr = best.lm.Wr;

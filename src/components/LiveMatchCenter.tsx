@@ -2348,6 +2348,9 @@ export default function LiveMatchCenter() {
                     nonStriker={nonStriker || null}
                     bowler={currentBowler || null}
                     deliveryResult={currentDeliveryResult}
+                    strikerStats={striker ? inning?.batters?.[striker.id] ?? { runs: 0, balls: 0 } : null}
+                    nonStrikerStats={nonStriker ? inning?.batters?.[nonStriker.id] ?? { runs: 0, balls: 0 } : null}
+                    bowlerStats={currentBowler ? inning?.bowlers?.[currentBowler.id] ?? { wickets: 0, runs: 0, balls: 0 } : null}
                     lifecycle={deliveryLifecycle}
                     onPlaybackComplete={handlePlaybackComplete}
                     onContactReached={handleContactReached}

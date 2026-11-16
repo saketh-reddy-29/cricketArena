@@ -44,6 +44,14 @@ export interface InterceptionInput {
   catchEligible?: boolean;
   /** Injectable RNG (0..1) for deterministic tests. Defaults to Math.random. */
   rng?: () => number;
+  /**
+   * The match engine's ruling for this delivery. When supplied, the physical animation MUST agree with it:
+   *  - a Caught wicket is always a catch (never a drop), by the fielder best placed to take it;
+   *  - an aerial ball that is not a wicket is never shown as a catch;
+   *  - 4 or more runs is a boundary the fielders cannot stop;
+   *  - Bowled / LBW never reaches the field.
+   */
+  authoritative?: { wicket: boolean; wicketType?: string; runs: number };
 }
 
 export interface InterceptionResult {
@@ -111,11 +119,13 @@ export function projectPointOnSegment(p: Point, origin: Point, dest: Point): { p
 export function evaluateInterception(input: InterceptionInput): InterceptionResult {
   const { ballPath, fielders } = input;
   const rng = input.rng ?? Math.random;
+  const auth = input.authoritative;
+  const wicketKind = (auth?.wicketType ?? '').toLowerCase();
 
   const origin: Point = ballPath.contact ?? ballPath.start;
   const dest: Point = ballPath.target;
   const segmentLength = dist(origin, dest);
-  const isAerial = input.catchEligible ?? Boolean(ballPath.isAerial);
+  const isAerial = (input.catchEligible ?? Boolean(ballPath.isAerial)) && !(auth && !auth.wicket);
   const ballSpeed = input.ballSpeed ?? (isAerial ? DEFAULT_AERIAL_BALL_SPEED : DEFAULT_BALL_SPEED);
   const reaction = input.reactionTime ?? DEFAULT_REACTION_TIME;
   const totalBallTime = segmentLength / Math.max(1, ballSpeed);
@@ -123,6 +133,33 @@ export function evaluateInterception(input: InterceptionInput): InterceptionResu
   const boundary = dist(dest, FIELD_CENTER) >= BOUNDARY_RADIUS - 4;
 
   // ── Evaluate every fielder's ability to reach its closest point on the path
+  // ---- Authoritative outcomes: the animation never contradicts the match engine ----
+  const nearest = (): { f: FielderProfile; proj: { point: Point; fraction: number } } | null => {
+    let pick: { f: FielderProfile; proj: { point: Point; fraction: number }; d: number } | null = null;
+    for (const f of fielders) {
+      const proj = projectPointOnSegment({ x: f.x, y: f.y }, origin, dest);
+      const d = dist({ x: f.x, y: f.y }, proj.point);
+      if (!pick || d < pick.d) pick = { f, proj, d };
+    }
+    return pick;
+  };
+  const result = (o: InterceptionOutcome, f: FielderProfile | null, point: Point, extra: Partial<InterceptionResult> = {}): InterceptionResult => ({
+    outcome: o, fielderId: f?.id ?? null, fielderName: f?.name ?? null, interceptPoint: point,
+    boundary: o === 'BOUNDARY', isCatch: o === 'CAUGHT', isDrop: false, reachable: Boolean(f), confidence: f ? 0.9 : 0,
+    distanceToBall: 0, timeToBall: 0, ballTravelTime: Number(totalBallTime.toFixed(3)), ...extra,
+  });
+  if (auth) {
+    if (auth.wicket && wicketKind.includes('caught')) {
+      const n = nearest();
+      if (n) return result('CAUGHT', n.f, n.proj.point, { isCatch: true, distanceToBall: Number(dist({ x: n.f.x, y: n.f.y }, n.proj.point).toFixed(2)) });
+    } else if (auth.wicket && (wicketKind.includes('bowled') || wicketKind.includes('lbw'))) {
+      const keeper = fielders.find((f) => f.isWicketkeeper) ?? null;
+      return result(keeper ? 'STOPPED' : 'THROUGH', keeper, keeper ? { x: keeper.x, y: keeper.y } : dest);
+    } else if (!auth.wicket && auth.runs >= 4) {
+      return result('BOUNDARY', null, dest, { boundary: true });
+    }
+  }
+
   let best: Candidate | null = null;
   for (const f of fielders) {
     const proj = projectPointOnSegment({ x: f.x, y: f.y }, origin, dest);
