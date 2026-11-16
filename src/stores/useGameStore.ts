@@ -35,6 +35,7 @@ import { BatterScoringMemory } from '../engine/analytics/BatterScoringMemory';
 import { GoogleUserProfile, CloudSaveData } from '../types/auth';
 import type { MatchCheckpoint, MatchSaveStatus } from '../types/matchRecovery';
 import { matchRecoveryStorage } from '../engine/storage/MatchRecoveryStorage';
+import { getBidIncrement, getMaxAllowableBid } from '../lib/iplAuctionEngine';
 
 // Pre-flight cleanup: if localStorage contains bloated old store payload, strip heavy keys immediately
 try {
@@ -724,7 +725,7 @@ export const useGameStore = create<GameStore>()(
         }
 
         const player = state.players.find((p) => p.id === state.currentAuctionPlayerId);
-        const increment = state.auctionCurrentBid < 50000000 ? 2500000 : 5000000;
+        const increment = getBidIncrement(state.auctionCurrentBid);
         const minNextBid = state.auctionLeadingTeamId ? state.auctionCurrentBid + increment : state.auctionCurrentBid;
         const bidAmount = customAmount ? Math.max(minNextBid, customAmount) : minNextBid;
 
@@ -732,6 +733,17 @@ export const useGameStore = create<GameStore>()(
         if (team.purse < bidAmount) {
           return { ok: false, reason: `${team.name} has insufficient purse (Available: ₹${(team.purse / 10000000).toFixed(2)} Cr)` };
         }
+
+        // Max allowable bid formula validation (reserve for minimum 18 squad)
+        const maxAllowable = getMaxAllowableBid(team.purse, team.squad.length);
+        if (bidAmount > maxAllowable) {
+          const neededAfterThis = Math.max(0, 18 - team.squad.length - 1);
+          return {
+            ok: false,
+            reason: `${team.name} exceeds max allowable bid (Must reserve ₹${((neededAfterThis * 2000000) / 10000000).toFixed(2)} Cr for remaining squad slots)`,
+          };
+        }
+
         // Squad capacity validation (max 25)
         if (team.squad.length >= 25) {
           return { ok: false, reason: `${team.name} has reached maximum squad limit (25 players)` };
@@ -741,11 +753,11 @@ export const useGameStore = create<GameStore>()(
           return { ok: false, reason: `${team.name} has reached overseas limit (8 players)` };
         }
 
-        // Apply bid atomically
+        // Apply bid atomically and reset countdown timer to 10s
         set((s) => ({
           auctionCurrentBid: bidAmount,
           auctionLeadingTeamId: teamId,
-          auctionTimer: 8,
+          auctionTimer: 10,
           bidLog: [{ teamId, amount: bidAmount, timestamp: Date.now() }, ...s.bidLog].slice(0, 50),
         }));
 

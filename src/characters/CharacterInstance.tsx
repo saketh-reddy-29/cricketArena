@@ -9,7 +9,7 @@ import { KitFormat, KitRole, KitVariant } from './teamKits';
 
 export interface CharacterInstanceProps {
   modelUrl: string;
-  position: [number, number]; // [x, z] in 3D stadium coordinates
+  position: [number, number] | [number, number, number]; // [x, z] or [x, y, z] in 3D coordinates
   yaw: number;                // Facing angle in radians
   action: CricketArenaAction;
   progress: number;
@@ -279,7 +279,10 @@ function CharacterInstanceInner({
     }
 
     // Update root position and rotation
-    root.position.set(position[0], 0, position[1]);
+    const posX = position[0];
+    const posY = position.length === 3 ? position[1] : 0;
+    const posZ = position.length === 3 ? position[2] : position[1];
+    root.position.set(posX, posY, posZ);
     root.rotation.y = yaw - Math.PI / 2 + (pose.yw || 0) * Math.PI / 2 + (pose.sp || 0);
 
     modelWrapper.position.y = pose.air || 0;
@@ -310,7 +313,7 @@ function CharacterInstanceInner({
     }
 
     // Ground clamp: keep feet above grass level efficiently without full-graph traverse
-    if (feet.nodes.length && pose.crouch > 0.3) {
+    if (feet.nodes.length && pose.crouch > 0.3 && posY === 0) {
       let minY = Infinity;
       for (const n of feet.nodes) {
         n.getWorldPosition(feet.v);

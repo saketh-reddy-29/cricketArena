@@ -9,10 +9,17 @@ import { useGameStore, GameState, Franchise, PlayerOwnershipStatus } from '../st
 import confetti from 'canvas-confetti';
 import { cn } from '../lib/utils';
 import { evaluateBid, AuctionState, FranchiseAIState, getBidDelay } from '../lib/auctionAI';
-import AuctionPlayer3DStage from './AuctionPlayer3DStage';
-import { getPlayerImage } from '../lib/playerImages';
+import { getPlayerImage, handlePlayerImageError } from '../lib/playerImages';
 import { Player } from '../types/common';
 import { resolveTeamLogoUrl } from '../lib/teamLogos';
+import {
+  getBidIncrement,
+  getMaxAllowableBid,
+  calculateAIMaxWillingToPay,
+  shouldAIStopBidding,
+  checkSquadRoleQuotas,
+  calculateAuctionFinalStandings,
+} from '../lib/iplAuctionEngine';
 
 const AuctionBroadcastStage = React.lazy(() => import('./AuctionBroadcastStage'));
 
@@ -140,71 +147,55 @@ export default function AuctionRoom() {
     return () => clearInterval(interval);
   }, [auctionPhase, auctionIsPaused, auctionTimer, setAuctionTimer, handleSaleConclusion]);
 
-  // AI Bidding Engine loop
-  // The countdown intentionally is NOT a dependency: changing it every second
-  // used to cancel and restart the bid timeout before most AI bids could fire.
+  // AI Bidding Engine Loop (Human-like pacing, valuation & multi-bot dueling)
   useEffect(() => {
     if (auctionPhase !== 'bidding' || auctionIsPaused || !currentPlayer) return;
 
     const nominatedPlayerId = currentPlayer.id;
     const bidAtSchedule = auctionCurrentBid;
     const leaderAtSchedule = auctionLeadingTeamId;
+    const currentTimer = auctionTimer;
 
-    const eligibleFranchises = franchises.filter((franchise) => {
-      if (franchise.id === auctionLeadingTeamId) return false;
-      if (franchise.id === selectedFranchiseId) return false;
-      if (withdrawnTeams.includes(franchise.id)) return false;
-      if (franchise.squad.length >= 25) return false;
-      if (currentPlayer.nationality === 'Overseas' && franchise.overseasCount >= 8) return false;
+    const nextInc = getBidIncrement(auctionCurrentBid);
+    const requiredNextBid = auctionLeadingTeamId ? auctionCurrentBid + nextInc : auctionCurrentBid;
 
-      const requiredNextBid = auctionLeadingTeamId
-        ? auctionCurrentBid + (auctionCurrentBid < 50_000_000 ? 2_500_000 : 5_000_000)
-        : auctionCurrentBid;
-      if (franchise.purse < requiredNextBid) return false;
-
-      const roster = franchise.squad
-        .map((playerId) => players.find((player) => player.id === playerId))
-        .filter((player): player is Player => Boolean(player));
-      const hasWicketkeeper = roster.some((player) => player.role === 'Wicketkeeper');
-      const bowlingOptions = roster.filter((player) => player.role === 'Bowler' || player.role === 'All-rounder').length;
-      const fillsMinimumXI = franchise.squad.length < 11;
-      const fillsWicketkeeperRole = !hasWicketkeeper && currentPlayer.role === 'Wicketkeeper';
-      const fillsBowlingDepth = bowlingOptions < 5 && (currentPlayer.role === 'Bowler' || currentPlayer.role === 'All-rounder');
-      const mustCompleteXI = fillsMinimumXI || fillsWicketkeeperRole || fillsBowlingDepth;
-
-      const aiState = franchiseAIStates.current.get(franchise.id) ?? createFranchiseAIState();
-      const decision = evaluateBid(currentPlayer, franchise, auctionCurrentBid, franchises, auctionStateForAI, aiState);
-      return mustCompleteXI || (decision.decision === 'BUY' && Math.random() > decision.dropoutProbability);
-    });
-
-    if (eligibleFranchises.length === 0) return;
-
-    const nextBidder = eligibleFranchises
-      .map((franchise) => {
-        const roster = franchise.squad
-          .map((playerId) => players.find((player) => player.id === playerId))
-          .filter((player): player is Player => Boolean(player));
-        const hasWicketkeeper = roster.some((player) => player.role === 'Wicketkeeper');
-        const bowlingOptions = roster.filter((player) => player.role === 'Bowler' || player.role === 'All-rounder').length;
-        const mustCompleteXI =
-          franchise.squad.length < 11 ||
-          (!hasWicketkeeper && currentPlayer.role === 'Wicketkeeper') ||
-          (bowlingOptions < 5 && (currentPlayer.role === 'Bowler' || currentPlayer.role === 'All-rounder'));
-        const aiState = franchiseAIStates.current.get(franchise.id) ?? createFranchiseAIState();
-        const decision = evaluateBid(currentPlayer, franchise, auctionCurrentBid, franchises, auctionStateForAI, aiState);
+    // Evaluate all AI franchises for this nominated player using Base Valuation + Random Variance + Role Need
+    const aiContenders = franchises
+      .filter((f) => f.id !== selectedFranchiseId && !withdrawnTeams.includes(f.id) && f.id !== auctionLeadingTeamId)
+      .map((f) => {
+        const maxValuation = calculateAIMaxWillingToPay(
+          currentPlayer,
+          f,
+          players,
+          auctionPoolIndex,
+          totalPlayersInPool
+        );
+        const stopCheck = shouldAIStopBidding(requiredNextBid, maxValuation, f, currentPlayer);
         return {
-          franchise,
-          decision,
-          delay: mustCompleteXI ? 450 + Math.random() * 250 : getBidDelay(decision),
+          franchise: f,
+          maxValuation,
+          canBid: !stopCheck.shouldStop,
         };
       })
-      .sort((a, b) => a.delay - b.delay)[0];
+      .filter((entry) => entry.canBid)
+      .sort((a, b) => b.maxValuation - a.maxValuation);
 
+    if (aiContenders.length === 0) return;
+
+    // Multi-bot rule: top 2 AI teams duel against each other (or against the user)
+    const top2 = aiContenders.slice(0, 2);
+    const nextBidder = top2[0];
     if (!nextBidder) return;
 
+    // Pacing rules:
+    // 15% chance of last-second snipe (waits until auctionTimer <= 2s)
+    // Otherwise human-like reaction delay between 1.2s and 3.5s
+    const isSnipe = Math.random() < 0.15 && currentTimer > 3;
+    const delay = isSnipe
+      ? Math.max(1200, (currentTimer - 2) * 1000 + Math.random() * 400)
+      : 1200 + Math.random() * 2300;
+
     const timeout = setTimeout(() => {
-      // Read current store state at fire time. This protects against a stale
-      // closure if the auction was paused, advanced, or already concluded.
       const latest = useGameStore.getState();
       if (
         latest.auctionPhase !== 'bidding' ||
@@ -215,17 +206,8 @@ export default function AuctionRoom() {
         latest.auctionLeadingTeamId !== leaderAtSchedule
       ) return;
 
-      const result = placeAuctionBid(nextBidder.franchise.id);
-      if (result.ok) {
-        const aiState = franchiseAIStates.current.get(nextBidder.franchise.id) ?? createFranchiseAIState();
-        franchiseAIStates.current.set(nextBidder.franchise.id, {
-          ...aiState,
-          fatigueLevel: Math.min(100, aiState.fatigueLevel + 5),
-          lastPurchasePrice: bidAtSchedule,
-          consecutivePasses: 0,
-        });
-      }
-    }, nextBidder.delay);
+      placeAuctionBid(nextBidder.franchise.id, requiredNextBid);
+    }, delay);
 
     return () => clearTimeout(timeout);
   }, [
@@ -237,19 +219,43 @@ export default function AuctionRoom() {
     selectedFranchiseId,
     withdrawnTeams,
     auctionCurrentBid,
-    auctionStateForAI,
+    auctionPoolIndex,
+    totalPlayersInPool,
+    players,
     placeAuctionBid,
   ]);
 
-  // User Bidding Handlers
-  const handleUserBid = (increment?: number) => {
+  // User Bidding Calculations & Handlers
+  const nextIncrement = getBidIncrement(auctionCurrentBid);
+  const nextUserBidAmount = auctionLeadingTeamId ? auctionCurrentBid + nextIncrement : auctionCurrentBid;
+  const maxAllowableUserBid = userFranchise ? getMaxAllowableBid(userFranchise.purse, userFranchise.squad.length) : 0;
+  const isOverseasBlocked = currentPlayer?.nationality === 'Overseas' && (userFranchise?.overseasCount ?? 0) >= 8;
+  const isSquadFull = (userFranchise?.squad.length ?? 0) >= 25;
+  const isPurseShort = nextUserBidAmount > maxAllowableUserBid;
+
+  const userRoster = useMemo(() => {
+    if (!userFranchise) return [];
+    return userFranchise.squad.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => Boolean(p));
+  }, [userFranchise, players]);
+
+  const userRoleQuotas = useMemo(() => {
+    return checkSquadRoleQuotas(userRoster);
+  }, [userRoster]);
+
+  const standings = useMemo(() => {
+    return calculateAuctionFinalStandings(franchises, players);
+  }, [franchises, players]);
+
+  const handleUserBid = (customIncrement?: number) => {
     if (!selectedFranchiseId) {
       setBidError('No team selected to bid with');
       return;
     }
     setBidError(null);
 
-    const targetAmount = increment ? auctionCurrentBid + increment : undefined;
+    const inc = customIncrement ?? getBidIncrement(auctionCurrentBid);
+    const targetAmount = auctionLeadingTeamId ? auctionCurrentBid + inc : auctionCurrentBid;
+
     const res = placeAuctionBid(selectedFranchiseId, targetAmount);
     if (!res.ok && res.reason) {
       setBidError(res.reason);
@@ -421,9 +427,11 @@ export default function AuctionRoom() {
                     onClick={() => setViewedPlayer(currentPlayer.id)}
                     className="group relative w-56 h-72 rounded-2xl overflow-hidden border-2 border-white/20 bg-gradient-to-b from-[#152C4D] to-[#071426] shadow-2xl cursor-pointer hover:border-[#258BFF] transition-all"
                   >
-                    <AuctionPlayer3DStage
-                      player={currentPlayer}
-                      team={leadingFranchise?.name || userFranchise?.name || 'India'}
+                    <img
+                      src={getPlayerImage(currentPlayer)}
+                      alt={currentPlayer.name}
+                      onError={(e) => handlePlayerImageError(e, currentPlayer.name)}
+                      className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
                     />
                     <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#071426] via-[#071426]/70 to-transparent" />
                     
@@ -529,76 +537,137 @@ export default function AuctionRoom() {
 
                   {/* Interactive Bidding Controls for User */}
                   {auctionPhase === 'bidding' && (
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <button
-                        onClick={() => handleUserBid()}
-                        disabled={auctionLeadingTeamId === selectedFranchiseId || !userFranchise}
-                        className={cn(
-                          "flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg",
-                          auctionLeadingTeamId === selectedFranchiseId
-                            ? "bg-emerald-600/50 text-emerald-200 border border-emerald-500/50 cursor-not-allowed"
-                            : "bg-[#258BFF] hover:bg-blue-600 text-white btn-glow cursor-pointer active:scale-95"
-                        )}
-                      >
-                        <Gavel className="w-4 h-4" />
-                        <span>
-                          {auctionLeadingTeamId === selectedFranchiseId 
-                            ? 'YOU HOLD HIGHEST BID' 
-                            : `BID ₹${((auctionLeadingTeamId ? auctionCurrentBid + (auctionCurrentBid < 50_000_000 ? 2_500_000 : 5_000_000) : auctionCurrentBid) / 10000000).toFixed(2)} CR`}
-                        </span>
-                      </button>
+                    <div className="flex flex-col gap-2 pt-1">
+                      {/* Quota & Purse Safety Status */}
+                      {userFranchise && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] px-3 py-1.5 bg-[#071426]/80 rounded-xl border border-white/10">
+                          <span className="text-[#9DAEC4]">
+                            Max Bid Limit: <strong className="text-amber-400">₹{(maxAllowableUserBid / 10000000).toFixed(2)} Cr</strong> (Min 18 Squad Reserve)
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "font-bold",
+                              userFranchise.overseasCount >= 8 ? "text-red-400" : "text-blue-400"
+                            )}>
+                              Overseas: {userFranchise.overseasCount}/8
+                            </span>
+                            <span className="text-zinc-500">·</span>
+                            <span className="font-bold text-emerald-400">
+                              Squad: {userFranchise.squad.length}/25
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
-                      <button
-                        onClick={() => handleUserBid(25_000_000)}
-                        disabled={auctionLeadingTeamId === selectedFranchiseId}
-                        className="py-3 px-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold text-xs uppercase tracking-wider transition-colors active:scale-95"
-                        title="Jump bid by +25 Lakhs"
-                      >
-                        +25L
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => handleUserBid()}
+                          disabled={
+                            auctionLeadingTeamId === selectedFranchiseId ||
+                            !userFranchise ||
+                            isOverseasBlocked ||
+                            isSquadFull ||
+                            isPurseShort
+                          }
+                          className={cn(
+                            "flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg",
+                            auctionLeadingTeamId === selectedFranchiseId
+                              ? "bg-emerald-600/50 text-emerald-200 border border-emerald-500/50 cursor-not-allowed"
+                              : isOverseasBlocked || isSquadFull || isPurseShort
+                              ? "bg-zinc-800 text-zinc-400 border border-zinc-700 cursor-not-allowed"
+                              : "bg-[#258BFF] hover:bg-blue-600 text-white btn-glow cursor-pointer active:scale-95"
+                          )}
+                        >
+                          <Gavel className="w-4 h-4" />
+                          <span>
+                            {auctionLeadingTeamId === selectedFranchiseId
+                              ? 'YOU HOLD HIGHEST BID'
+                              : isOverseasBlocked
+                              ? 'OVERSEAS LIMIT REACHED (MAX 8)'
+                              : isSquadFull
+                              ? 'SQUAD FULL (MAX 25 PLAYERS)'
+                              : isPurseShort
+                              ? 'MAX ALLOWABLE PURSE CAP EXCEEDED'
+                              : !auctionLeadingTeamId
+                              ? `OPEN BID ₹${(auctionCurrentBid / 10000000).toFixed(2)} CR`
+                              : `RAISE BID (+₹${nextIncrement / 100000}L) → ₹${(nextUserBidAmount / 10000000).toFixed(2)} CR`}
+                          </span>
+                        </button>
 
-                      <button
-                        onClick={() => handleUserBid(50_000_000)}
-                        disabled={auctionLeadingTeamId === selectedFranchiseId}
-                        className="py-3 px-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold text-xs uppercase tracking-wider transition-colors active:scale-95"
-                        title="Jump bid by +50 Lakhs"
-                      >
-                        +50L
-                      </button>
-
-                      <button
-                        onClick={handleUserPass}
-                        disabled={withdrawnTeams.includes(selectedFranchiseId || '')}
-                        className={cn(
-                          "py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors",
-                          withdrawnTeams.includes(selectedFranchiseId || '')
-                            ? "bg-red-950/40 text-red-400 border border-red-800/40 cursor-not-allowed"
-                            : "bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 active:scale-95"
-                        )}
-                      >
-                        {withdrawnTeams.includes(selectedFranchiseId || '') ? 'PASSED' : 'PASS'}
-                      </button>
+                        <button
+                          onClick={handleUserPass}
+                          disabled={withdrawnTeams.includes(selectedFranchiseId || '')}
+                          className={cn(
+                            "py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer",
+                            withdrawnTeams.includes(selectedFranchiseId || '')
+                              ? "bg-red-950/40 text-red-400 border border-red-800/40 cursor-not-allowed"
+                              : "bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 active:scale-95"
+                          )}
+                        >
+                          {withdrawnTeams.includes(selectedFranchiseId || '') ? 'PASSED' : 'PASS'}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="py-16 text-center">
-                <Trophy className="w-16 h-16 text-[#F5B82E] mx-auto mb-4" />
-                <h3 className="text-2xl font-black text-white">Mega Auction Completed!</h3>
-                <p className="text-sm text-[#9DAEC4] max-w-md mx-auto mt-2 mb-6">
-                  All player pools have been auctioned. Review the completed squads or proceed to the tournament fixtures.
-                </p>
+              <div className="py-8 text-center space-y-6">
+                <div className="flex items-center justify-center gap-3">
+                  <Trophy className="w-12 h-12 text-[#F5B82E]" />
+                  <div className="text-left">
+                    <h3 className="text-2xl font-black text-white">Mega Auction Completed!</h3>
+                    <p className="text-xs text-[#9DAEC4]">
+                      All franchises have completed their squads. Best Playing XIs & final ratings have been computed.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Final Standings Leaderboard Table */}
+                <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[#071426]/90 text-left shadow-xl">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/5 text-[#9DAEC4] uppercase font-bold text-[10px]">
+                        <th className="py-2.5 px-3">Rank</th>
+                        <th className="py-2.5 px-3">Franchise</th>
+                        <th className="py-2.5 px-3">Squad</th>
+                        <th className="py-2.5 px-3">Overseas</th>
+                        <th className="py-2.5 px-3">Purse Left</th>
+                        <th className="py-2.5 px-3">XI Points</th>
+                        <th className="py-2.5 px-3">Bonus</th>
+                        <th className="py-2.5 px-3 text-right">Final Score</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 font-medium">
+                      {standings.map((st) => (
+                        <tr key={st.franchiseId} className={cn(st.franchiseId === selectedFranchiseId && "bg-blue-600/20")}>
+                          <td className="py-2.5 px-3 font-black text-[#F5B82E]">#{st.rank}</td>
+                          <td className="py-2.5 px-3 flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: st.color }} />
+                            <span className="font-bold text-white">{st.franchiseName}</span>
+                          </td>
+                          <td className="py-2.5 px-3">{st.roleQuotas.total.count}/25</td>
+                          <td className="py-2.5 px-3">{st.roleQuotas.overseas.count}/8</td>
+                          <td className="py-2.5 px-3 text-amber-400">₹{st.purseRemainingCr.toFixed(2)} Cr</td>
+                          <td className="py-2.5 px-3 font-bold text-white">{st.xiTotalRating} pts</td>
+                          <td className="py-2.5 px-3 text-[#9DAEC4]">+{Math.round((st.purseBonus + st.benchBonus) * 10) / 10}</td>
+                          <td className="py-2.5 px-3 text-right font-black text-sm text-[#F5B82E]">{st.finalScore}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
                 <div className="flex items-center justify-center gap-4">
                   <button
                     onClick={() => setActiveTab('SQUAD')}
-                    className="px-6 py-3 rounded-xl bg-[#258BFF] font-bold text-white uppercase text-xs tracking-wider"
+                    className="px-6 py-3 rounded-xl bg-[#258BFF] hover:bg-blue-600 font-bold text-white uppercase text-xs tracking-wider cursor-pointer"
                   >
-                    View My Squad
+                    View My Playing XI
                   </button>
                   <button
                     onClick={() => setActiveTab('MATCHES')}
-                    className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold text-white uppercase text-xs tracking-wider"
+                    className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold text-white uppercase text-xs tracking-wider cursor-pointer"
                   >
                     Go to Fixtures
                   </button>
