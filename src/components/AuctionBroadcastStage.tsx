@@ -77,6 +77,21 @@ function FranchiseDesk({
         <boxGeometry args={[3.45, 0.78, 0.14]} />
         <meshStandardMaterial color={team.color || '#24344e'} roughness={0.5} metalness={0.18} />
       </mesh>
+      {/* Raised-backed delegate chair on the outer side of each franchise desk. */}
+      <mesh position={[0, 0.57, -1.23]}>
+        <boxGeometry args={[1.12, 0.16, 0.96]} />
+        <meshStandardMaterial color="#111c31" roughness={0.65} metalness={0.2} />
+      </mesh>
+      <mesh position={[0, 1.15, -1.68]}>
+        <boxGeometry args={[1.12, 1.16, 0.16]} />
+        <meshStandardMaterial color="#182b4a" roughness={0.55} metalness={0.25} />
+      </mesh>
+      {[-0.43, 0.43].map((leg) => (
+        <mesh key={leg} position={[leg, 0.29, -1.23]}>
+          <boxGeometry args={[0.12, 0.58, 0.12]} />
+          <meshStandardMaterial color="#64748b" metalness={0.5} roughness={0.45} />
+        </mesh>
+      ))}
       {[-1.55, 1.55].map((leg) => (
         <mesh key={leg} position={[leg, 0.43, 0]}>
           <boxGeometry args={[0.2, 0.86, 1.7]} />
