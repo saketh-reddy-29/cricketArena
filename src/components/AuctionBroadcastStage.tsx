@@ -186,11 +186,11 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
 
 export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps) {
   return (
-    <div className="relative h-[360px] w-full overflow-hidden rounded-3xl border border-[#e6b34b]/30 bg-[#071426] shadow-[0_20px_60px_rgba(0,0,0,0.45)] sm:h-[420px]">
+    <div className="relative h-[430px] w-full overflow-hidden rounded-3xl border border-[#e6b34b]/30 bg-[#071426] shadow-[0_20px_60px_rgba(0,0,0,0.45)] sm:h-[500px]">
       <div className="pointer-events-none absolute left-4 top-3 z-10 rounded-lg border border-[#f5b82e]/40 bg-[#071426]/85 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-[#f5b82e] backdrop-blur">
         CRIC ARENA · LIVE AUCTION BROADCAST
       </div>
-      <Canvas dpr={[0.6, 0.9]} gl={{ antialias: false, powerPreference: 'high-performance' }} camera={{ position: [0, 12, 27], fov: 43, near: 0.1, far: 100 }}>
+      <Canvas dpr={[0.55, 0.85]} gl={{ antialias: false, powerPreference: 'high-performance' }} camera={{ position: [0, 11, 30], fov: 48, near: 0.1, far: 100 }}>
         <AuctionRoomScene {...props} />
       </Canvas>
     </div>
