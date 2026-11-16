@@ -233,7 +233,7 @@ function CharacterSlot(props: CharacterSlotProps) {
   return (
     <CharacterLoadBoundary fallback={fallback}>
       <Suspense fallback={fallback}>
-        <CharacterSlot {...props} />
+        <CharacterInstance {...props} />
       </Suspense>
     </CharacterLoadBoundary>
   );
@@ -660,7 +660,7 @@ function StadiumScene({
       })}
 
       {/* Bowler-end official: neutral white umpire kit + head-rig wide-brim hat. */}
-      <CharacterSlot
+      <CharacterSlot key="bowler-end-umpire"
         modelUrl={LIGHT_MODEL}
         position={[0, -11.35]}
         yaw={0}
@@ -684,7 +684,7 @@ function StadiumScene({
       />
 
       {/* Square-leg official: mirrors to the striker's leg side for left-handed batters. */}
-      <CharacterSlot
+      <CharacterSlot key="square-leg-umpire"
         modelUrl={LIGHT_MODEL}
         position={squareLegUmpireWorld}
         yaw={squareLegUmpireYaw}
