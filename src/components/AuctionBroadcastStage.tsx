@@ -252,6 +252,29 @@ function SideAuctionBoard({ side, title, subtitle }: { side: 'left' | 'right'; t
   );
 }
 
+function AuctionCharacterLoading({ position, color }: { position: [number, number]; color: string }) {
+  return (
+    <group position={[position[0], 0, position[1]]}>
+      <mesh position={[0, 0.78, 0]}>
+        <cylinderGeometry args={[0.23, 0.28, 0.78, 10]} />
+        <meshStandardMaterial color={color || '#7894b8'} roughness={0.82} />
+      </mesh>
+      <mesh position={[0, 1.36, 0]}>
+        <sphereGeometry args={[0.19, 12, 10]} />
+        <meshStandardMaterial color="#d6b49a" roughness={0.88} />
+      </mesh>
+      <mesh position={[-0.27, 0.83, 0]} rotation={[0, 0, 0.28]}>
+        <cylinderGeometry args={[0.07, 0.08, 0.53, 8]} />
+        <meshStandardMaterial color={color || '#7894b8'} roughness={0.82} />
+      </mesh>
+      <mesh position={[0.27, 0.83, 0]} rotation={[0, 0, -0.28]}>
+        <cylinderGeometry args={[0.07, 0.08, 0.53, 8]} />
+        <meshStandardMaterial color={color || '#7894b8'} roughness={0.82} />
+      </mesh>
+    </group>
+  );
+}
+
 function AuctionRoomScene(props: AuctionBroadcastStageProps) {
   const { franchises, leadingTeamId, selectedTeamId, player, playerImage, currentBid, phase, timer } = props;
   const leadingTeam = franchises.find((team) => team.id === leadingTeamId);
@@ -362,32 +385,40 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
         const sideCount = onLeft ? leftCount : franchises.length - leftCount;
         const z = sideCount <= 1 ? 0 : -10 + (sideIndex / (sideCount - 1)) * 19;
         const activeBidder = team.id === leadingTeamId;
+        const position: [number, number] = [onLeft ? -14.05 : 14.05, z];
         return (
-          <CharacterInstance
-            key={'auction-rep-' + team.id}
-            modelUrl={AUCTION_CHARACTER_MODEL}
-            position={[onLeft ? -14.05 : 14.05, z]}
-            yaw={onLeft ? Math.PI / 2 : -Math.PI / 2}
-            action={activeBidder ? 'auctionBid' : 'auctionSit'}
-            progress={activeBidder ? 0.46 : 0.12}
-            team={team.name}
-            format="T20"
-            kitRole="fielder"
-            heightScale={0.68}
-            updateFps={activeBidder ? 12 : 8} trackBall={false} castShadow={false}
-          />
+          <Suspense key={'auction-rep-' + team.id} fallback={<AuctionCharacterLoading position={position} color={team.color} />}>
+            <CharacterInstance
+              modelUrl={AUCTION_CHARACTER_MODEL}
+              position={position}
+              yaw={onLeft ? Math.PI / 2 : -Math.PI / 2}
+              action={activeBidder ? 'auctionBid' : 'auctionSit'}
+              progress={activeBidder ? 0.46 : 0.12}
+              team={team.name}
+              format="T20"
+              kitRole="fielder"
+              heightScale={0.68}
+              updateFps={activeBidder ? 12 : 8}
+              trackBall={false}
+              castShadow={false}
+            />
+          </Suspense>
         );
       })}
 
-      <CharacterInstance
-        modelUrl={AUCTION_CHARACTER_MODEL}
-        position={[0, 2.05]}
-        yaw={0}
-        action={phase === 'sold' ? 'victory' : 'auctioneerCall'}
-        progress={phase === 'sold' ? 0.45 : 0.34}
-        heightScale={0.92}
-        updateFps={18} trackBall={false} castShadow={false}
-      />
+      <Suspense fallback={<AuctionCharacterLoading position={[0, 2.05]} color="#f5b82e" />}>
+        <CharacterInstance
+          modelUrl={AUCTION_CHARACTER_MODEL}
+          position={[0, 2.05]}
+          yaw={0}
+          action={phase === 'sold' ? 'victory' : 'auctioneerCall'}
+          progress={phase === 'sold' ? 0.45 : 0.34}
+          heightScale={0.92}
+          updateFps={18}
+          trackBall={false}
+          castShadow={false}
+        />
+      </Suspense>
       <AuctionGavel phase={phase} />
 
       {/* Foreground broadcast floor graphics and audience-side seating rails. */}
@@ -455,9 +486,7 @@ export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps)
         gl={{ antialias: false, powerPreference: 'high-performance' }}
         camera={{ position: [0, 10.5, 31], fov: 48, near: 0.1, far: 100 }}
       >
-        <Suspense fallback={null}>
-          <AuctionRoomScene {...props} />
-        </Suspense>
+        <AuctionRoomScene {...props} />
       </Canvas>
     </div>
   );
