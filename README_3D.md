@@ -97,18 +97,18 @@ so a few millimetres of graze can remain; keeper and bowling poses are slightly 
 * **Button audit:** a static scan of 260 buttons found none without a handler and no no-op handlers; a crawl of 13 pages clicked
   ~100 buttons with zero crashes (`tools/kit-preview/crawl.mjs`).
 
-## Role animation additions (feature branch)
+## Broadcast playback and performance updates (feature branch)
 
-The current 3D match scene now includes two neutral-kit officials:
-- Bowler-end umpire: wicket, wide, no-ball and six signals.
-- Square-leg umpire: boundary-four signal and run-out / stumping dismissal response.
-- The official kit is white shirt, dark trousers, white shoes and a separate white wide-brim hat with a dark band attached to the head rig. It is independent of the batting and bowling team colours.
+- The temporary umpire character placeholders have been removed from the match scene.
+- The default 3D view is the TV broadcast camera. Batter, Drone, TV, Bowler, Side, Action and Orbit viewpoints remain selectable.
+- A Full / Exit control expands the match view to the browser's fullscreen viewport.
+- Rendering is tuned for lower-power GPUs: shadows and antialiasing are disabled in the match canvas and device pixel ratio is capped; procedural character rig solving and React playback-state publication are limited to about 30 updates per second.
+- Ball-flight playback duration scales with the ball's route distance. Ball retrieval also scales with distance to the bowler and holds the returned ball visibly at the bowler for a short settle before releasing the next delivery.
+- The playback gate still requires both ball retrieval and batter movement to finish before advancing to the next delivery.
+- On a wicket, the dismissed batter completes the walk-off first; the replacement batter then enters from the pavilion. The broadcast camera tightens onto the active batter during that transition.
+- Bowling plans still select the associated yorker, bouncer / short, slower-ball and swing poses, while spin style takes precedence.
 
-The pose library also includes explicit umpire actions for not-out, wide, no-ball and dead-ball situations. Only match outcomes with an authoritative signal currently trigger the relevant visible call; a normal non-wicket delivery is not treated as a formal not-out review decision.
-
-Character pose parameters are blended on action changes to reduce abrupt snapping. The 3D bowler receives the active tactical bowling plan from the match visualizer, mapping yorker, short/bouncer, slower-ball and swing plans to their corresponding bowling actions; spinner style takes precedence.
-
-These are procedural skeletal poses on the repository's existing GLB rig, not separate motion-capture clips. Verify the hat fit, official placement and arm reach against the actual GLB in the browser before shipping.
+The match poses remain procedural skeletal animation on the existing GLB rig, not newly authored motion-capture clips. Performance settings are intended to reduce UI churn and GPU load; real-world frame rate still depends on the device GPU and should be reviewed on the target hardware.
 
 ## Known limits (please read)
 * Shirt numbers and heights are generated from the player name (the match data carries neither).
@@ -117,7 +117,7 @@ These are procedural skeletal poses on the repository's existing GLB rig, not se
 * Practice uses a simple timing model, not the full match engine; it records nothing.
 * World Cup teams are the game's franchises / teams; a country-only squad pool depends on the player data.
 * `autoSimulateMatch` unlocks the next match-day on a later tick, so "Auto sim stage" runs asynchronously.
-* Verified in a software-rendered browser (a few frames per second); real-GPU smoothness was not measured. Match introductions,
+* The match view uses lower-cost rendering and throttled rig / UI updates, but frame rate on the target GPU still needs real-device review. Match introductions,
   substitute players and a dedicated celebration camera were not added.
 
 ## Screenshot tooling
