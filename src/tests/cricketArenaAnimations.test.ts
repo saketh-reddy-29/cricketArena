@@ -16,3 +16,20 @@ describe('cricket arena rigged actions', () => {
     expect(getCricketArenaPose('lofted', 0.5, 0).by).toBeGreaterThan(1);
   });
 });
+
+
+describe('live auction character poses', () => {
+  it('keeps seated bidders, raised bidders and the auctioneer distinct and finite', () => {
+    const seated = getCricketArenaPose('auctionSit', 1, 1.2);
+    const bidding = getCricketArenaPose('auctionBid', 1, 1.2);
+    const auctioneer = getCricketArenaPose('auctioneerCall', 1, 1.2);
+
+    expect(seated.crouch).toBeGreaterThan(0.3);
+    expect(bidding.crouch).toBeGreaterThan(0.3);
+    expect(bidding.rhy).toBeGreaterThan(seated.rhy);
+    expect(auctioneer.rhy).toBeGreaterThan(1.5);
+    expect(Object.values(seated).every(Number.isFinite)).toBe(true);
+    expect(Object.values(bidding).every(Number.isFinite)).toBe(true);
+    expect(Object.values(auctioneer).every(Number.isFinite)).toBe(true);
+  });
+});
