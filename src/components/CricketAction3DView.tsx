@@ -518,7 +518,7 @@ function StadiumScene({
         position={[0, -11.35]}
         yaw={0}
         action={
-          stage === 'OUTCOME' && delivery?.wicket
+          stage === 'OUTCOME' && delivery?.wicket && delivery.wicketType !== 'Run Out' && delivery.wicketType !== 'Stumped'
             ? 'umpireOut'
             : stage === 'OUTCOME' && delivery?.extraType === 'Wide'
             ? 'umpireWide'
