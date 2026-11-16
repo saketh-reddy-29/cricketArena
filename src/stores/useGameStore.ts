@@ -666,6 +666,7 @@ export const useGameStore = create<GameStore>()(
         }
 
         return {
+          selectedFranchiseId: state.selectedFranchiseId || state.franchises[0]?.id || '1',
           auctionPool: poolIds,
           auctionPoolIndex: 0,
           auctionCurrentBid: firstPlayer?.basePrice || 20000000,

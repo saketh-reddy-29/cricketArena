@@ -33,6 +33,7 @@ export default function AuctionRoom() {
   const { 
     franchises, 
     selectedFranchiseId, 
+    selectFranchise,
     players,
     auctionPool,
     auctionPoolIndex,
@@ -75,6 +76,16 @@ export default function AuctionRoom() {
     }
   }, [franchises]);
 
+  // Ensure selected franchise is always established (default to team 1 / first franchise)
+  const effectiveFranchiseId = selectedFranchiseId || franchises[0]?.id || '1';
+  const userFranchise = franchises.find((f) => f.id === effectiveFranchiseId);
+
+  useEffect(() => {
+    if (!selectedFranchiseId && franchises.length > 0) {
+      selectFranchise(franchises[0].id);
+    }
+  }, [selectedFranchiseId, franchises, selectFranchise]);
+
   // Pre-flight initialization on mount
   useEffect(() => {
     if (!auctionPool || auctionPool.length === 0) {
@@ -84,11 +95,10 @@ export default function AuctionRoom() {
 
   const currentPlayerId = auctionPool[auctionPoolIndex] || null;
   const currentPlayer = useMemo(() => {
-    return currentPlayerId ? players.find(p => p.id === currentPlayerId) || null : null;
+    return currentPlayerId ? players.find((p) => p.id === currentPlayerId) || null : null;
   }, [currentPlayerId, players]);
 
-  const userFranchise = franchises.find(f => f.id === selectedFranchiseId);
-  const leadingFranchise = franchises.find(f => f.id === auctionLeadingTeamId);
+  const leadingFranchise = franchises.find((f) => f.id === auctionLeadingTeamId);
 
   // Auction progression calculations
   const totalPlayersInPool = auctionPool.length;
@@ -247,16 +257,16 @@ export default function AuctionRoom() {
   }, [franchises, players]);
 
   const handleUserBid = (customIncrement?: number) => {
-    if (!selectedFranchiseId) {
-      setBidError('No team selected to bid with');
-      return;
+    const teamId = selectedFranchiseId || effectiveFranchiseId;
+    if (!selectedFranchiseId && teamId) {
+      selectFranchise(teamId);
     }
     setBidError(null);
 
     const inc = customIncrement ?? getBidIncrement(auctionCurrentBid);
     const targetAmount = auctionLeadingTeamId ? auctionCurrentBid + inc : auctionCurrentBid;
 
-    const res = placeAuctionBid(selectedFranchiseId, targetAmount);
+    const res = placeAuctionBid(teamId, targetAmount);
     if (!res.ok && res.reason) {
       setBidError(res.reason);
       setTimeout(() => setBidError(null), 3000);
@@ -264,8 +274,9 @@ export default function AuctionRoom() {
   };
 
   const handleUserPass = () => {
-    if (selectedFranchiseId) {
-      teamPassPlayer(selectedFranchiseId);
+    const teamId = selectedFranchiseId || effectiveFranchiseId;
+    if (teamId) {
+      teamPassPlayer(teamId);
     }
   };
 
@@ -366,6 +377,81 @@ export default function AuctionRoom() {
               bidLog={bidLog}
             />
           </React.Suspense>
+
+          {/* Accessible 10-Franchise Live Bidding Board */}
+          <div className="glass-card rounded-2xl p-4 border border-white/10 shadow-lg">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#F5B82E]" />
+                <h3 className="text-xs font-black text-white uppercase tracking-wider">
+                  IPL Live Franchises (10 Teams)
+                </h3>
+              </div>
+              <span className="text-[10px] text-[#9DAEC4]">
+                Tap any team to switch & bid
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {franchises.map((team) => {
+                const isUser = team.id === effectiveFranchiseId;
+                const isLeading = team.id === auctionLeadingTeamId;
+                const hasPassed = withdrawnTeams.includes(team.id);
+
+                return (
+                  <button
+                    key={team.id}
+                    type="button"
+                    onClick={() => selectFranchise(team.id)}
+                    className={cn(
+                      "p-2.5 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col gap-1.5 cursor-pointer",
+                      isLeading
+                        ? "border-[#F5B82E] bg-gradient-to-b from-[#F5B82E]/30 to-[#F5B82E]/10 shadow-md shadow-[#F5B82E]/20 ring-1 ring-[#F5B82E]"
+                        : isUser
+                        ? "border-blue-500/70 bg-blue-950/40 ring-1 ring-blue-500/50"
+                        : "border-white/10 bg-[#071426]/70 hover:border-white/20 hover:bg-[#0c1f38]"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <img
+                          src={resolveTeamLogoUrl(team.shortName, team.logo)}
+                          alt={team.name}
+                          className="w-5 h-5 object-contain shrink-0"
+                        />
+                        <span className="text-xs font-black text-white truncate">{team.shortName}</span>
+                      </div>
+                      {isLeading && (
+                        <span className="px-1.5 py-0.5 rounded bg-[#F5B82E] text-black text-[9px] font-black uppercase tracking-wider shrink-0 animate-pulse">
+                          HIGH
+                        </span>
+                      )}
+                      {isUser && !isLeading && (
+                        <span className="px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-300 text-[8px] font-black uppercase tracking-wider shrink-0">
+                          YOU
+                        </span>
+                      )}
+                      {hasPassed && (
+                        <span className="px-1.5 py-0.5 rounded bg-red-950/60 text-red-400 text-[8px] font-bold uppercase tracking-wider shrink-0">
+                          PASS
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-black text-[#F5B82E]">
+                        ₹{(team.purse / 10000000).toFixed(1)} Cr
+                      </span>
+                      <span className="text-[#9DAEC4] text-[9px]">
+                        {team.squad.length}/25 ({team.overseasCount} OS)
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Central Podium Card */}
           <div className="glass-card rounded-3xl p-6 relative overflow-hidden border border-white/10">
             {/* Ambient lighting effects */}
@@ -563,15 +649,14 @@ export default function AuctionRoom() {
                         <button
                           onClick={() => handleUserBid()}
                           disabled={
-                            auctionLeadingTeamId === selectedFranchiseId ||
-                            !userFranchise ||
+                            auctionLeadingTeamId === effectiveFranchiseId ||
                             isOverseasBlocked ||
                             isSquadFull ||
                             isPurseShort
                           }
                           className={cn(
                             "flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg",
-                            auctionLeadingTeamId === selectedFranchiseId
+                            auctionLeadingTeamId === effectiveFranchiseId
                               ? "bg-emerald-600/50 text-emerald-200 border border-emerald-500/50 cursor-not-allowed"
                               : isOverseasBlocked || isSquadFull || isPurseShort
                               ? "bg-zinc-800 text-zinc-400 border border-zinc-700 cursor-not-allowed"
@@ -580,7 +665,7 @@ export default function AuctionRoom() {
                         >
                           <Gavel className="w-4 h-4" />
                           <span>
-                            {auctionLeadingTeamId === selectedFranchiseId
+                            {auctionLeadingTeamId === effectiveFranchiseId
                               ? 'YOU HOLD HIGHEST BID'
                               : isOverseasBlocked
                               ? 'OVERSEAS LIMIT REACHED (MAX 8)'
