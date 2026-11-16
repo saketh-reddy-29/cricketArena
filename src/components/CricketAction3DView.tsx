@@ -134,6 +134,21 @@ function actionForFielder(fielder: ArenaPlayer, actionStr: string): CricketArena
   return 'ready';
 }
 
+function CharacterLoadingSilhouette({ position, yaw = 0 }: { position: [number, number]; yaw?: number }) {
+  return (
+    <group position={[position[0], 0, position[1]]} rotation={[0, yaw - Math.PI / 2, 0]}>
+      <mesh position={[0, 0.88, 0]}>
+        <cylinderGeometry args={[0.22, 0.28, 1.0, 8]} />
+        <meshStandardMaterial color="#7e9fc9" roughness={0.85} transparent opacity={0.7} />
+      </mesh>
+      <mesh position={[0, 1.55, 0]}>
+        <sphereGeometry args={[0.19, 10, 8]} />
+        <meshStandardMaterial color="#c1cde0" roughness={0.8} transparent opacity={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
 function StadiumScene({
   isDay = false,
   props,
@@ -381,6 +396,7 @@ function StadiumScene({
 
       {/* Striker Batsman */}
       {striker && sVisible && (
+        <Suspense fallback={<CharacterLoadingSilhouette position={sPos} yaw={sYaw} />}>
         <CharacterInstance
           modelUrl={PADDED_MODEL}
           position={sPos}
@@ -403,10 +419,12 @@ function StadiumScene({
           kitVariant={kitVariants.batting}
           kitRole="batter"
         />
+        </Suspense>
       )}
 
       {/* Non-Striker Batsman */}
       {nonStriker && (
+        <Suspense fallback={<CharacterLoadingSilhouette position={nPos} yaw={nYaw} />}>
         <CharacterInstance
           modelUrl={PADDED_MODEL}
           position={nPos}
@@ -426,10 +444,12 @@ function StadiumScene({
           kitVariant={kitVariants.batting}
           kitRole="batter"
         />
+        </Suspense>
       )}
 
       {/* Incoming batter walking out after a wicket */}
       {incoming && (
+        <Suspense fallback={<CharacterLoadingSilhouette position={incoming.pos} yaw={incoming.yaw} />}>
         <CharacterInstance
           modelUrl={PADDED_MODEL}
           position={incoming.pos}
@@ -446,6 +466,7 @@ function StadiumScene({
           kitVariant={kitVariants.batting}
           kitRole="batter"
         />
+        </Suspense>
       )}
 
       {/* Bowler and Fielders */}
@@ -492,6 +513,7 @@ function StadiumScene({
           : Math.atan2(-location[0], -location[1]);
 
         return (
+          <Suspense key={fielder.id} fallback={<CharacterLoadingSilhouette position={location} yaw={facingAngle} />}>
           <CharacterInstance
             key={fielder.id}
             modelUrl={isKeeper ? PADDED_MODEL : LIGHT_MODEL}
@@ -513,6 +535,7 @@ function StadiumScene({
             kitVariant={kitVariants.bowling}
             kitRole={isKeeper ? 'keeper' : 'fielder'}
           />
+          </Suspense>
         );
       })}
 
@@ -550,14 +573,12 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
           toneMappingExposure: 1.15,
         }}
       >
-        <Suspense fallback={null}>
-          <StadiumScene
-            isDay={isDay}
-            props={props}
-            cameraMode={cameraMode}
-            showDebugSkeleton={showDebugSkeleton}
-          />
-        </Suspense>
+        <StadiumScene
+          isDay={isDay}
+          props={props}
+          cameraMode={cameraMode}
+          showDebugSkeleton={showDebugSkeleton}
+        />
       </Canvas>
 
       {/* Top Left Status Badge */}
