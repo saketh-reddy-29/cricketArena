@@ -91,7 +91,17 @@ describe('batter motion (running between the wickets, walk-off / walk-in)', () =
     const start = computeBatterMotion({ kind: 'WICKET', progress: 0, runs: 0 }, S, N);
     expect(start.sAct).toBe('defeat'); expect(start.sVisible).toBe(true); expect(start.incoming).toBeNull();
     const mid = computeBatterMotion({ kind: 'WICKET', progress: 0.5, runs: 0 }, S, N);
-    expect(mid.sAct).toBe('jog'); expect(mid.sPos[0]).toBeLessThan(-5); expect(mid.incoming).not.toBeNull();
+    expect(mid.sAct).toBe('jog');
+    expect(mid.sPos[0]).toBeLessThan(-5);
+    expect(mid.sVisible).toBe(true);
+    expect(mid.incoming).toBeNull(); // the dismissed player must leave before a replacement appears
+
+    const entry = computeBatterMotion({ kind: 'WICKET', progress: 0.78, runs: 0 }, S, N);
+    expect(entry.sVisible).toBe(false);
+    expect(near(entry.sPos, PAVILION_EXIT)).toBe(true);
+    expect(entry.incoming).not.toBeNull();
+    expect(entry.incoming!.pos[0]).toBeGreaterThan(PAVILION_EXIT[0]);
+
     const end = computeBatterMotion({ kind: 'WICKET', progress: 1, runs: 0 }, S, N);
     expect(end.sVisible).toBe(false);
     expect(near(end.incoming!.pos, S)).toBe(true);
