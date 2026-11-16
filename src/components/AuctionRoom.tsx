@@ -368,13 +368,18 @@ export default function AuctionRoom() {
             <AuctionBroadcastStage
               franchises={franchises}
               leadingTeamId={auctionLeadingTeamId}
-              selectedTeamId={selectedFranchiseId}
+              selectedTeamId={effectiveFranchiseId}
               player={currentPlayer}
               playerImage={getPlayerImage(currentPlayer)}
               currentBid={auctionCurrentBid}
               phase={auctionPhase}
               timer={auctionTimer}
               bidLog={bidLog}
+              onBid={handleUserBid}
+              onPass={handleUserPass}
+              isOverseasBlocked={isOverseasBlocked}
+              isSquadFull={isSquadFull}
+              isPurseShort={isPurseShort}
             />
           </React.Suspense>
 

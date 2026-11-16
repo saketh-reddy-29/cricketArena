@@ -2,10 +2,12 @@ import React, { Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { Gavel } from 'lucide-react';
 import type { Franchise } from '../stores/useGameStore';
 import type { Player } from '../types/common';
 import { getPlayerAvatar } from '../lib/playerImages';
 import { CharacterInstance, CharacterErrorBoundary } from '../characters/CharacterInstance';
+import { getBidIncrement } from '../lib/iplAuctionEngine';
 
 const AUCTION_CHARACTER_MODEL = '/models/cricket-arena/cartoon_character_3d_model.glb';
 
@@ -24,6 +26,11 @@ interface AuctionBroadcastStageProps {
   phase: string;
   timer: number;
   bidLog: Array<{ teamId: string; amount: number; timestamp: number }>;
+  onBid?: (increment?: number) => void;
+  onPass?: () => void;
+  isOverseasBlocked?: boolean;
+  isSquadFull?: boolean;
+  isPurseShort?: boolean;
 }
 
 function BidPaddle({ team, leading, selected }: { team: DeskTeam; leading: boolean; selected: boolean }) {
@@ -191,30 +198,47 @@ function FranchiseDesk({
       {/* Interactive/Animated Bidding Paddle */}
       <BidPaddle team={team} leading={leading} selected={selected} />
 
-      {/* Desk Nameplate & Purse Display */}
-      <Html position={[0, 1.45, 0.3]} center distanceFactor={14}>
+      {/* Team Name & Purse written directly on the front panel of the desk */}
+      <Html
+        position={[0, 0.36, 0.49]}
+        center
+        distanceFactor={14}
+        transform
+        scale={0.16}
+      >
         <div
           style={{
-            minWidth: 120,
-            padding: '6px 8px',
-            borderRadius: 9,
-            color: '#fff',
-            background: 'rgba(5,15,36,0.92)',
-            border: leading ? '1.5px solid #f5b82e' : '1px solid rgba(148,163,184,0.35)',
-            boxShadow: leading ? '0 0 20px rgba(245,184,46,0.45)' : '0 4px 14px rgba(0,0,0,0.4)',
+            width: 310,
+            padding: '7px 10px',
+            borderRadius: 8,
+            background: 'rgba(5, 14, 32, 0.94)',
+            border: leading ? '2.5px solid #f5b82e' : '1.5px solid rgba(255,255,255,0.25)',
+            boxShadow: leading ? '0 0 25px rgba(245,184,46,0.6)' : 'none',
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            fontFamily: 'Arial,sans-serif',
-            whiteSpace: 'nowrap',
+            justifyContent: 'space-between',
+            fontFamily: 'Arial, sans-serif',
+            color: '#fff',
           }}
         >
-          {team.logo ? <img src={team.logo} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} /> : null}
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 900, lineHeight: 1.1 }}>{team.shortName}</div>
-            <div style={{ color: '#93c5fd', fontSize: 9, marginTop: 2 }}>₹{(team.purse / 10000000).toFixed(1)} Cr left</div>
-            {leading ? <div style={{ color: '#f5b82e', fontSize: 8, fontWeight: 900, marginTop: 1 }}>LEADING BID</div> : null}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {team.logo ? <img src={team.logo} alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} /> : null}
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.1, letterSpacing: 0.5 }}>{team.shortName}</div>
+              <div style={{ fontSize: 12, color: '#f5b82e', fontWeight: 800, marginTop: 2 }}>
+                ₹{(team.purse / 10000000).toFixed(1)} Cr
+              </div>
+            </div>
           </div>
+          {leading ? (
+            <span style={{ fontSize: 10, fontWeight: 900, background: '#f5b82e', color: '#000', padding: '3px 8px', borderRadius: 4, letterSpacing: 1 }}>
+              HIGH BID
+            </span>
+          ) : selected ? (
+            <span style={{ fontSize: 9, fontWeight: 900, background: 'rgba(37,139,255,0.4)', color: '#93c5fd', padding: '3px 6px', borderRadius: 4 }}>
+              YOU
+            </span>
+          ) : null}
         </div>
       </Html>
     </group>
@@ -631,6 +655,10 @@ export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps)
     }
   };
 
+  const isLeading = Boolean(props.selectedTeamId && props.selectedTeamId === props.leadingTeamId);
+  const hudIncrement = getBidIncrement(props.currentBid);
+  const hudNextBid = props.leadingTeamId ? props.currentBid + hudIncrement : props.currentBid;
+
   return (
     <div
       ref={stageRef}
@@ -662,6 +690,88 @@ export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps)
       >
         <AuctionRoomScene {...props} />
       </Canvas>
+
+      {/* Live Screen Quick Bidding HUD: User can bid directly on the live screen without scrolling */}
+      {props.player && props.phase === 'bidding' && props.onBid && (
+        <div className="absolute bottom-3 inset-x-3 z-30 flex flex-wrap items-center justify-between gap-3 bg-[#071426]/95 backdrop-blur-md border border-white/20 rounded-2xl p-2.5 sm:p-3 shadow-2xl">
+          {/* Current Nominated Player Quick Info */}
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src={props.playerImage}
+              alt={props.player.name}
+              className="w-10 h-10 rounded-xl object-cover object-top border border-white/20 shadow-md shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-black text-xs sm:text-sm text-white truncate">{props.player.name}</span>
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 text-[9px] font-bold">
+                  {props.player.role}
+                </span>
+              </div>
+              <div className="text-[10px] sm:text-[11px] text-[#9DAEC4] flex items-center gap-2 mt-0.5">
+                <span>Base: ₹{(props.player.basePrice ? props.player.basePrice / 10000000 : 2).toFixed(2)} Cr</span>
+                <span>·</span>
+                <span className="font-bold text-[#F5B82E]">Current: ₹{(props.currentBid / 10000000).toFixed(2)} Cr</span>
+                <span>·</span>
+                <span className="text-cyan-300 font-bold">
+                  Leader: {props.franchises.find((f) => f.id === props.leadingTeamId)?.shortName || 'None'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Countdown & Quick Action Buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div
+              className={`px-2.5 py-1 rounded-xl text-xs font-black border flex items-center gap-1 ${
+                props.timer <= 3
+                  ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse'
+                  : 'bg-white/10 text-amber-400 border-amber-400/30'
+              }`}
+            >
+              ⏱ {props.timer}s
+            </div>
+
+            <button
+              type="button"
+              onClick={() => props.onBid && props.onBid()}
+              disabled={isLeading || props.isOverseasBlocked || props.isSquadFull || props.isPurseShort}
+              className={`py-2 px-3 sm:px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-lg cursor-pointer ${
+                isLeading
+                  ? 'bg-emerald-600/70 text-emerald-100 border border-emerald-400/50 cursor-not-allowed'
+                  : props.isOverseasBlocked || props.isSquadFull || props.isPurseShort
+                  ? 'bg-zinc-800 text-zinc-400 border border-zinc-700 cursor-not-allowed'
+                  : 'bg-[#258BFF] hover:bg-blue-600 text-white btn-glow active:scale-95'
+              }`}
+            >
+              <Gavel className="w-3.5 h-3.5" />
+              <span>
+                {isLeading
+                  ? 'YOU HOLD HIGHEST BID'
+                  : props.isOverseasBlocked
+                  ? 'OVERSEAS FULL'
+                  : props.isSquadFull
+                  ? 'SQUAD FULL'
+                  : props.isPurseShort
+                  ? 'PURSE CAP REACHED'
+                  : !props.leadingTeamId
+                  ? `OPEN BID ₹${(props.currentBid / 10000000).toFixed(2)} CR`
+                  : `RAISE (+₹${hudIncrement / 100000}L) → ₹${(hudNextBid / 10000000).toFixed(2)} CR`}
+              </span>
+            </button>
+
+            {props.onPass && (
+              <button
+                type="button"
+                onClick={props.onPass}
+                className="py-2 px-2.5 sm:px-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-bold text-xs uppercase cursor-pointer active:scale-95"
+              >
+                PASS
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
