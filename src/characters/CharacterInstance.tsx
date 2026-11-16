@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { buildCharacterRig, CricketRigModel } from './CharacterRig';
-import { CricketArenaAction, getCricketArenaPose } from '../lib/cricketArenaAnimations';
+import { CricketArenaAction, CricketArenaPose, getCricketArenaPose } from '../lib/cricketArenaAnimations';
 import { applyTeamKit, createKitCharacter } from './kitMaterial';
 import { KitFormat, KitRole, KitVariant } from './teamKits';
 
@@ -59,6 +59,8 @@ export function CharacterInstance({
   const modelWrapperRef = useRef<THREE.Group>(null);
   const batRef = useRef<THREE.Group>(null);
   const solverState = useRef<Record<string, unknown>>({});
+  const smoothedPose = useRef<CricketArenaPose | null>(null);
+  const previousAction = useRef<CricketArenaAction>(action);
 
   // Debug Skeleton Line Ref
   const debugLinesRef = useRef<THREE.LineSegments>(null);
@@ -136,7 +138,7 @@ export function CharacterInstance({
     if (!root || !modelWrapper) return;
 
     const clock = state.clock.elapsedTime;
-    let pose = getCricketArenaPose(action, progress, clock, isLeftHanded);
+    let targetPose = getCricketArenaPose(action, progress, clock, isLeftHanded);
 
     // Dynamic Head Tracking: look towards ball if within 12 meters
     if (ballPos && root) {
@@ -146,12 +148,34 @@ export function CharacterInstance({
       const dist = Math.hypot(dx, dz);
       if (dist < 14) {
         const targetPitch = Math.atan2(dx, dz) - yaw;
-        pose = {
-          ...pose,
-          head: (pose.head || 0) + THREE.MathUtils.clamp(targetPitch * 0.4, -0.6, 0.6),
+        targetPose = {
+          ...targetPose,
+          head: (targetPose.head || 0) + THREE.MathUtils.clamp(targetPitch * 0.4, -0.6, 0.6),
         };
       }
     }
+
+    // Blend every rig parameter instead of snapping between ready, run, shot,
+    // fielding and umpire poses. A slightly faster blend is used when the action
+    // changes; continuous motion within an action remains responsive.
+    const actionChanged = previousAction.current !== action;
+    const blend = 1 - Math.exp(-delta * (actionChanged ? 18 : 28));
+    if (!smoothedPose.current) {
+      smoothedPose.current = { ...targetPose };
+    } else {
+      const from = smoothedPose.current;
+      const next = { ...targetPose };
+      (Object.keys(targetPose) as (keyof CricketArenaPose)[]).forEach((key) => {
+        const a = from[key] ?? 0;
+        const b = targetPose[key] ?? 0;
+        if (typeof a === 'number' && typeof b === 'number') {
+          next[key] = a + (b - a) * blend;
+        }
+      });
+      smoothedPose.current = next;
+    }
+    previousAction.current = action;
+    const pose = smoothedPose.current;
 
     // Update root position and rotation
     root.position.set(position[0], 0, position[1]);
