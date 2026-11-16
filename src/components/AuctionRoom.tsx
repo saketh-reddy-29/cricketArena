@@ -9,6 +9,7 @@ import { useGameStore, GameState, Franchise, PlayerOwnershipStatus } from '../st
 import confetti from 'canvas-confetti';
 import { cn } from '../lib/utils';
 import { evaluateBid, AuctionState, FranchiseAIState, getBidDelay } from '../lib/auctionAI';
+import AuctionBroadcastStage from './AuctionBroadcastStage';
 import AuctionPlayer3DStage from './AuctionPlayer3DStage';
 import { getPlayerImage } from '../lib/playerImages';
 import { Player } from '../types/common';
@@ -115,7 +116,7 @@ export default function AuctionRoom() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [auctionPhase, auctionIsPaused, auctionTimer, setAuctionTimer]);
+  }, [auctionPhase, auctionIsPaused, auctionTimer, setAuctionTimer, handleSaleConclusion]);
 
   // Authoritative conclusion handler
   const handleSaleConclusion = useCallback(() => {
@@ -139,60 +140,70 @@ export default function AuctionRoom() {
   }, [auctionPhase, finalizePlayerSale, selectedFranchiseId, advanceAuctionNextPlayer]);
 
   // AI Bidding Engine loop
+  // The countdown intentionally is NOT a dependency: changing it every second
+  // used to cancel and restart the bid timeout before most AI bids could fire.
   useEffect(() => {
     if (auctionPhase !== 'bidding' || auctionIsPaused || !currentPlayer) return;
 
-    // Filter AI franchises eligible to bid
-    const eligibleFranchises = franchises.filter(f => {
-      if (f.id === auctionLeadingTeamId) return false;
-      if (f.id === selectedFranchiseId) return false; // User controls their own team
-      if (withdrawnTeams.includes(f.id)) return false;
-      if (f.squad.length >= 25) return false;
-      if (currentPlayer.nationality === 'Overseas' && f.overseasCount >= 8) return false;
+    const nominatedPlayerId = currentPlayer.id;
+    const bidAtSchedule = auctionCurrentBid;
+    const leaderAtSchedule = auctionLeadingTeamId;
 
-      // Ensure budget buffer
-      const requiredNextBid = auctionLeadingTeamId 
+    const eligibleFranchises = franchises.filter((franchise) => {
+      if (franchise.id === auctionLeadingTeamId) return false;
+      if (franchise.id === selectedFranchiseId) return false;
+      if (withdrawnTeams.includes(franchise.id)) return false;
+      if (franchise.squad.length >= 25) return false;
+      if (currentPlayer.nationality === 'Overseas' && franchise.overseasCount >= 8) return false;
+
+      const requiredNextBid = auctionLeadingTeamId
         ? auctionCurrentBid + (auctionCurrentBid < 50_000_000 ? 2_500_000 : 5_000_000)
         : auctionCurrentBid;
-      if (f.purse < requiredNextBid) return false;
+      if (franchise.purse < requiredNextBid) return false;
 
-      const aiState = franchiseAIStates.current.get(f.id) ?? createFranchiseAIState();
-      const decision = evaluateBid(currentPlayer, f, auctionCurrentBid, franchises, auctionStateForAI, aiState);
+      const aiState = franchiseAIStates.current.get(franchise.id) ?? createFranchiseAIState();
+      const decision = evaluateBid(currentPlayer, franchise, auctionCurrentBid, franchises, auctionStateForAI, aiState);
       return decision.decision === 'BUY' && Math.random() > decision.dropoutProbability;
     });
 
     if (eligibleFranchises.length === 0) return;
 
-    // Calculate bid timing delays for competitive AI bidders
-    const bidsWithDelay = eligibleFranchises.map(franchise => {
-      const aiState = franchiseAIStates.current.get(franchise.id) ?? createFranchiseAIState();
-      const decision = evaluateBid(currentPlayer, franchise, auctionCurrentBid, franchises, auctionStateForAI, aiState);
-      return {
-        franchise,
-        decision,
-        delay: getBidDelay(decision),
-      };
-    }).sort((a, b) => a.delay - b.delay);
+    const nextBidder = eligibleFranchises
+      .map((franchise) => {
+        const aiState = franchiseAIStates.current.get(franchise.id) ?? createFranchiseAIState();
+        const decision = evaluateBid(currentPlayer, franchise, auctionCurrentBid, franchises, auctionStateForAI, aiState);
+        return { franchise, decision, delay: getBidDelay(decision) };
+      })
+      .sort((a, b) => a.delay - b.delay)[0];
 
-    const fastestBid = bidsWithDelay[0];
-    if (!fastestBid) return;
+    if (!nextBidder) return;
 
-    const timer = setTimeout(() => {
-      // Re-verify eligibility before placing
-      if (auctionPhase !== 'bidding' || auctionIsPaused || auctionTimer <= 1) return;
-      const res = placeAuctionBid(fastestBid.franchise.id);
-      if (res.ok) {
-        const aiState = franchiseAIStates.current.get(fastestBid.franchise.id) ?? createFranchiseAIState();
-        franchiseAIStates.current.set(fastestBid.franchise.id, {
+    const timeout = setTimeout(() => {
+      // Read current store state at fire time. This protects against a stale
+      // closure if the auction was paused, advanced, or already concluded.
+      const latest = useGameStore.getState();
+      if (
+        latest.auctionPhase !== 'bidding' ||
+        latest.auctionIsPaused ||
+        latest.auctionTimer <= 1 ||
+        latest.currentAuctionPlayerId !== nominatedPlayerId ||
+        latest.auctionCurrentBid !== bidAtSchedule ||
+        latest.auctionLeadingTeamId !== leaderAtSchedule
+      ) return;
+
+      const result = placeAuctionBid(nextBidder.franchise.id);
+      if (result.ok) {
+        const aiState = franchiseAIStates.current.get(nextBidder.franchise.id) ?? createFranchiseAIState();
+        franchiseAIStates.current.set(nextBidder.franchise.id, {
           ...aiState,
           fatigueLevel: Math.min(100, aiState.fatigueLevel + 5),
-          lastPurchasePrice: auctionCurrentBid,
+          lastPurchasePrice: bidAtSchedule,
           consecutivePasses: 0,
         });
       }
-    }, fastestBid.delay);
+    }, nextBidder.delay);
 
-    return () => clearTimeout(timer);
+    return () => clearTimeout(timeout);
   }, [
     auctionPhase,
     auctionIsPaused,
@@ -202,7 +213,6 @@ export default function AuctionRoom() {
     selectedFranchiseId,
     withdrawnTeams,
     auctionCurrentBid,
-    auctionTimer,
     auctionStateForAI,
     placeAuctionBid,
   ]);
@@ -307,6 +317,17 @@ export default function AuctionRoom() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left / Central Stage: Current Player & Active Podium (8 cols) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
+          <AuctionBroadcastStage
+            franchises={franchises}
+            leadingTeamId={auctionLeadingTeamId}
+            selectedTeamId={selectedFranchiseId}
+            player={currentPlayer}
+            playerImage={getPlayerImage(currentPlayer)}
+            currentBid={auctionCurrentBid}
+            phase={auctionPhase}
+            timer={auctionTimer}
+            bidLog={bidLog}
+          />
           {/* Central Podium Card */}
           <div className="glass-card rounded-3xl p-6 relative overflow-hidden border border-white/10">
             {/* Ambient lighting effects */}
@@ -491,7 +512,7 @@ export default function AuctionRoom() {
                         <span>
                           {auctionLeadingTeamId === selectedFranchiseId 
                             ? 'YOU HOLD HIGHEST BID' 
-                            : `BID ₹${((auctionCurrentBid + (auctionCurrentBid < 50_000_000 ? 2_500_000 : 5_000_000)) / 10000000).toFixed(2)} CR`}
+                            : `BID ₹${((auctionLeadingTeamId ? auctionCurrentBid + (auctionCurrentBid < 50_000_000 ? 2_500_000 : 5_000_000) : auctionCurrentBid) / 10000000).toFixed(2)} CR`}
                         </span>
                       </button>
 
