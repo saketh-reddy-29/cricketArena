@@ -156,7 +156,7 @@ export const CANONICAL_POSITIONS: Record<string, FieldPositionDef> = {
   SQUARE_LEG: { key: 'SQUARE_LEG', name: 'Square Leg', x: 432, y: 205, category: 'RING', ringDistance: 'INNER', isOutsideCircle: false, tacticalRole: 'Clip / Sweep Sentry' },
   BACKWARD_SQUARE_LEG: { key: 'BACKWARD_SQUARE_LEG', name: 'Backward Square Leg', x: 410, y: 180, category: 'RING', ringDistance: 'INNER', isOutsideCircle: false, tacticalRole: 'Square Leg Glance Intercept' },
   SHORT_FINE_LEG: { key: 'SHORT_FINE_LEG', name: 'Short Fine Leg', x: 377, y: 160, category: 'RING', ringDistance: 'INNER', isOutsideCircle: false, tacticalRole: 'Glance Single Stopper' },
-  SHORT_THIRD_MAN: { key: 'SHORT_THIRD_MAN', name: 'Short Third Man', x: 180, y: 170, category: 'RING', ringDistance: 'INNER', isOutsideCircle: false, tacticalRole: 'Edge & Guide Saver' },
+  SHORT_THIRD_MAN: { key: 'SHORT_THIRD_MAN', name: 'Short Third Man', x: 190, y: 175, category: 'RING', ringDistance: 'INNER', isOutsideCircle: false, tacticalRole: 'Edge & Guide Saver' },
 
   // Deep Outfield Boundary Sweepers (Boundary Protectors)
   DEEP_THIRD: { key: 'DEEP_THIRD', name: 'Deep Third', x: 160, y: 80, category: 'BOUNDARY', ringDistance: 'OUTER', isOutsideCircle: true, tacticalRole: 'Fine Boundary Third Sentry' },
