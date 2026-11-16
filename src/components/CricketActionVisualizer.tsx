@@ -844,6 +844,8 @@ export default function CricketActionVisualizer({
 
     let startTime: number | null = null;
     let contactTriggered = false;
+    let lastUiFrameAt = -Infinity;
+    const uiFrameInterval = 1000 / 30;
 
     setBallVisible(true);
     setBailsFlying(false);
@@ -867,6 +869,15 @@ export default function CricketActionVisualizer({
       if (!startTime) {
         startTime = timestamp - (resumeFromProgress * totalDuration);
       }
+
+      // The 2D trail, scoreboard and 3D scene are React-driven. Updating them at
+      // 60-144 Hz caused a full component tree render on every display frame.
+      // Keep the presentation at a stable 30 Hz; the R3F canvas still renders independently.
+      if (timestamp - lastUiFrameAt < uiFrameInterval && timestamp < startTime + totalDuration) {
+        animFrameRef.current = requestAnimationFrame(step);
+        return;
+      }
+      lastUiFrameAt = timestamp;
 
       const elapsed = timestamp - startTime;
       const progress = Math.min(1, elapsed / totalDuration);
