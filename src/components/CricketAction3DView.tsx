@@ -14,7 +14,9 @@ import { pickVariants, resolveKit, jerseyNumberFor, jerseyNameFor } from '../cha
 import { BallVisual } from '../physics/BallVisual';
 import { soundFX } from '../3d/CricketSoundFX';
 import { CricketArenaAction } from '../lib/cricketArenaAnimations';
-import { Camera, Eye, Zap, Crosshair } from 'lucide-react';
+import { Camera, Eye, Zap, Crosshair, Settings, Sun, Moon, Sliders, X, Check, Activity, Shield, Sparkles } from 'lucide-react';
+
+export type MotionQuality = 'ULTRA' | 'BALANCED' | 'POWER_SAVE';
 
 const PADDED_MODEL = '/models/cricket-arena/cartoon_sports_character_3d_model.glb';
 const LIGHT_MODEL = '/models/cricket-arena/cartoon_character_3d_model.glb';
@@ -154,11 +156,13 @@ function StadiumScene({
   props,
   cameraMode,
   showDebugSkeleton,
+  motionQuality = 'ULTRA',
 }: {
   props: CricketAction3DViewProps;
   cameraMode: CameraViewMode;
   isDay?: boolean;
   showDebugSkeleton: boolean;
+  motionQuality?: MotionQuality;
 }) {
   const {
     fielders,
@@ -439,7 +443,7 @@ function StadiumScene({
               isLeftHanded={isLeftHanded}
               ballPos={ball3DPos}
               showDebugSkeleton={showDebugSkeleton}
-              updateFps={30}
+              updateFps={motionQuality === 'ULTRA' ? 60 : motionQuality === 'BALANCED' ? 45 : 30}
               trackBall
               castShadow
               team={battingTeamName}
@@ -466,7 +470,7 @@ function StadiumScene({
               progress={localProgress}
               hasBat={true}
               showDebugSkeleton={showDebugSkeleton}
-              updateFps={18}
+              updateFps={motionQuality === 'ULTRA' ? 45 : motionQuality === 'BALANCED' ? 30 : 20}
               trackBall={false}
               castShadow={false}
               team={battingTeamName}
@@ -490,7 +494,7 @@ function StadiumScene({
               progress={0}
               hasBat={true}
               showDebugSkeleton={showDebugSkeleton}
-              updateFps={18}
+              updateFps={motionQuality === 'ULTRA' ? 45 : motionQuality === 'BALANCED' ? 30 : 20}
               trackBall={false}
               castShadow={false}
               team={battingTeamName}
@@ -554,8 +558,15 @@ function StadiumScene({
         const isKeeper = fielder.isWicketkeeper || fielder.positionKey === 'WICKETKEEPER';
         const active = activeFielderAction?.fielderId === fielder.id ? activeFielderAction : null;
 
-        const location = isBowler
+        // Realistic cricket placement: Wicketkeeper stands right behind striker's stumps
+        // (up to stumps for spin, back for pace bowling)
+        const location: [number, number] = isBowler
           ? bowlerWorld
+          : isKeeper && !active
+          ? [
+              isLeftHanded ? 0.25 : -0.25,
+              bowling.kind === 'SPIN' ? PITCH_HALF + 1.25 : PITCH_HALF + 3.4,
+            ]
           : active
           ? toWorld(active.currentPos)
           : toWorld({ x: fielder.currentX, y: fielder.currentY });
@@ -591,6 +602,12 @@ function StadiumScene({
           ? Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1])
           : Math.atan2(strikerWorld[0] - location[0], strikerWorld[1] - location[1]);
 
+        const fielderFps = isBowler || active
+          ? (motionQuality === 'ULTRA' ? 60 : 45)
+          : isKeeper
+          ? (motionQuality === 'ULTRA' ? 45 : 30)
+          : (motionQuality === 'ULTRA' ? 30 : 20);
+
         return (
           <CharacterErrorBoundary key={fielder.id} fallback={<CharacterLoadingSilhouette position={location} yaw={facingAngle} />}>
             <Suspense fallback={<CharacterLoadingSilhouette position={location} yaw={facingAngle} />}>
@@ -606,7 +623,7 @@ function StadiumScene({
                 progress={isBowler ? Math.min(1, progress / 45) : localProgress}
                 ballPos={ball3DPos}
                 showDebugSkeleton={showDebugSkeleton}
-                updateFps={isBowler || active ? 30 : isKeeper ? 18 : 12}
+                updateFps={fielderFps}
                 trackBall={isBowler || isKeeper || Boolean(active)}
                 castShadow={isBowler || Boolean(active)}
                 team={bowlingTeamName}
@@ -636,10 +653,46 @@ function StadiumScene({
 }
 
 export default function CricketAction3DView(props: CricketAction3DViewProps) {
-  const [cameraMode, setCameraMode] = useState<CameraViewMode>(props.initialCameraMode ?? 'EA_BATTER');
+  const [cameraMode, setCameraMode] = useState<CameraViewMode>(() => {
+    return (localStorage.getItem('cricket_arena_camera_mode') as CameraViewMode) || props.initialCameraMode || 'EA_BATTER';
+  });
+  const [motionQuality, setMotionQuality] = useState<MotionQuality>(() => {
+    return (localStorage.getItem('cricket_arena_motion_quality') as MotionQuality) || 'ULTRA';
+  });
+  const [isDay, setIsDay] = useState<boolean>(() => {
+    const saved = localStorage.getItem('cricket_arena_is_day');
+    return saved !== null ? saved === 'true' : (props.initialDay ?? false);
+  });
   const [showDebugSkeleton, setShowDebugSkeleton] = useState(false);
   const [showKitPreview, setShowKitPreview] = useState(false);
-  const [isDay, setIsDay] = useState(props.initialDay ?? false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  const handleSetCameraMode = (mode: CameraViewMode) => {
+    setCameraMode(mode);
+    try {
+      localStorage.setItem('cricket_arena_camera_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSetMotionQuality = (quality: MotionQuality) => {
+    setMotionQuality(quality);
+    try {
+      localStorage.setItem('cricket_arena_motion_quality', quality);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSetIsDay = (day: boolean) => {
+    setIsDay(day);
+    try {
+      localStorage.setItem('cricket_arena_is_day', String(day));
+    } catch {
+      // ignore
+    }
+  };
 
   return (
     <div className="absolute inset-0 overflow-hidden rounded-xl bg-[#080e1e] select-none">
@@ -658,11 +711,12 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
           props={props}
           cameraMode={cameraMode}
           showDebugSkeleton={showDebugSkeleton}
+          motionQuality={motionQuality}
         />
       </Canvas>
 
       {/* Top Left Status Badge */}
-      <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
+      <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 z-20">
         <div className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-slate-950/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-cyan-200 backdrop-blur-md shadow-lg">
           <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
           <span>AAA 3D Match Stadium</span>
@@ -673,69 +727,46 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
         <KitPreviewPanel initialTeam={props.battingTeamName} onClose={() => setShowKitPreview(false)} />
       )}
 
-      {/* Top Right Camera & Debug Controls */}
+      {/* Top Right Clean Controls: Quick Camera Selector, Day/Night toggle, and Settings */}
       <div className="absolute right-3 top-3 flex items-center gap-1.5 z-20">
-        {/* Camera Selector */}
-        <div className="flex items-center bg-slate-950/85 backdrop-blur-md p-0.5 rounded-xl border border-white/10 shadow-lg text-[9px] font-bold">
-          {(
-            [
-              ['EA_BATTER', 'Behind the batter'],
-              ['DRONE', 'Drone - orbit the whole ground'],
-              ['BROADCAST', 'Broadcast TV'],
-              ['BOWLER_CAM', 'Bowler run-up'],
-              ['SIDE_ON', 'Side-on'],
-              ['ACTION_CAM', 'Action cam'],
-              ['ORBIT', 'Free orbit'],
-            ] as const
-          ).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setCameraMode(mode)}
-              title={label}
-              className={`px-2 py-1 rounded-lg transition-all ${
-                cameraMode === mode
-                  ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {CAMERA_LABELS[mode]}
-            </button>
-          ))}
+        {/* Quick Camera Dropdown / Button */}
+        <div className="relative group">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-cyan-500/30 bg-slate-950/85 text-[10px] font-bold text-cyan-200 backdrop-blur-md shadow-lg hover:border-cyan-400 hover:text-white transition-all"
+            onClick={() => setShowSettingsModal(true)}
+            title="Change Camera Perspective"
+          >
+            <Camera className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{CAMERA_LABELS[cameraMode] || 'Camera'}</span>
+            <span className="text-[8px] text-cyan-400/70">▾</span>
+          </button>
         </div>
 
-        {/* Day / night match */}
+        {/* Day / Night quick button */}
         <button
           type="button"
-          onClick={() => setIsDay((v) => !v)}
-          title="Switch between a day match and a floodlit night match"
-          className={`px-2 py-1 rounded-xl text-[9px] font-bold border backdrop-blur-md ${isDay ? 'bg-amber-500/20 text-amber-200 border-amber-400/40' : 'bg-slate-950/85 text-slate-300 border-white/10 hover:text-white'}`}
-        >
-          {isDay ? 'Day' : 'Night'}
-        </button>
-
-        {/* Player / kit preview */}
-        <button
-          type="button"
-          onClick={() => setShowKitPreview((v) => !v)}
-          title="Player preview: rotate, zoom, change national kit, format and number"
-          className={`px-2 py-1 rounded-xl text-[9px] font-bold border backdrop-blur-md ${showKitPreview ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40' : 'bg-slate-950/85 text-slate-300 border-white/10 hover:text-white'}`}
-        >
-          Kits
-        </button>
-
-        {/* Debug Skeleton & Collision Capsule Toggle */}
-        <button
-          type="button"
-          onClick={() => setShowDebugSkeleton((v) => !v)}
-          title={showDebugSkeleton ? 'Hide Debug Skeletons' : 'Show Debug Skeletons & IK Lines'}
-          className={`flex items-center justify-center p-1.5 rounded-xl border backdrop-blur-md transition-all shadow-lg ${
-            showDebugSkeleton
-              ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200'
-              : 'bg-slate-950/80 border-white/10 text-slate-400 hover:text-white'
+          onClick={() => handleSetIsDay(!isDay)}
+          title={isDay ? 'Switch to Floodlit Night Match' : 'Switch to Day Match'}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold border backdrop-blur-md transition-all shadow-lg ${
+            isDay
+              ? 'bg-amber-500/20 text-amber-200 border-amber-400/40 hover:bg-amber-500/30'
+              : 'bg-slate-950/85 text-slate-300 border-white/10 hover:text-white hover:border-white/20'
           }`}
         >
-          <Crosshair className="w-3.5 h-3.5" />
+          {isDay ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-blue-300" />}
+          <span className="hidden sm:inline">{isDay ? 'Day' : 'Night'}</span>
+        </button>
+
+        {/* Clean Preferences & Settings Button */}
+        <button
+          type="button"
+          onClick={() => setShowSettingsModal(true)}
+          title="Open Match & Stadium Preferences"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-cyan-400/40 bg-gradient-to-r from-cyan-600/30 to-blue-600/30 text-cyan-100 text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-lg hover:from-cyan-600/40 hover:to-blue-600/40 hover:border-cyan-300 transition-all cursor-pointer"
+        >
+          <Settings className="w-3.5 h-3.5 text-cyan-300" />
+          <span className="hidden sm:inline">Settings</span>
         </button>
       </div>
 
@@ -743,6 +774,198 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
       {cameraMode === 'ORBIT' && (
         <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-cyan-400/30 bg-slate-950/75 px-3 py-1 text-[10px] font-semibold text-cyan-200 backdrop-blur">
           Drag to rotate · Right-click to pan · Scroll to zoom
+        </div>
+      )}
+
+      {/* Clean Match Preferences Modal */}
+      {showSettingsModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/40 bg-[#09152b] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] text-white">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
+                  <Sliders className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wider text-white">Stadium & Match Preferences</h3>
+                  <p className="text-[10px] text-slate-400">Adjust camera perspective, frame rate smoothness, and lighting</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(false)}
+                className="p-1.5 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Close preferences"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="space-y-4 py-3 max-h-[70vh] overflow-y-auto pr-1">
+              {/* Camera Perspective Option Cards */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-cyan-300 block mb-2">
+                  Camera Perspective
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      ['EA_BATTER', 'Behind Batter', 'Immersive batting crease view down pitch'],
+                      ['BROADCAST', 'TV Broadcast', 'Classic side-on television camera'],
+                      ['DRONE', 'Drone Aerial', 'Sweeping 360° stadium aerial view'],
+                      ['ACTION_CAM', 'Action Cam', 'Dynamic chase camera following ball'],
+                      ['BOWLER_CAM', 'Bowler Run-Up', 'Follow behind bowler delivering ball'],
+                      ['SIDE_ON', 'Side-On', 'Side crease technical analysis angle'],
+                      ['ORBIT', 'Free 3D Orbit', 'Freely rotate, zoom, and explore stadium'],
+                    ] as const
+                  ).map(([mode, name, desc]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => handleSetCameraMode(mode)}
+                      className={`text-left p-2.5 rounded-xl border transition-all ${
+                        cameraMode === mode
+                          ? 'border-cyan-400 bg-cyan-500/20 text-white shadow-[0_0_15px_rgba(6,182,212,0.25)]'
+                          : 'border-white/10 bg-slate-900/60 text-slate-300 hover:border-white/20 hover:bg-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black">{name}</span>
+                        {cameraMode === mode && <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+                      </div>
+                      <p className="text-[9px] text-slate-400 mt-0.5 leading-snug">{desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Motion Smoothness & Quality */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-cyan-300 block mb-2">
+                  Motion Smoothness (FPS)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      ['ULTRA', 'Ultra (60 FPS)', 'Buttery smooth IK animations & ball motion', Activity],
+                      ['BALANCED', 'Balanced (45 FPS)', 'Standard smooth pacing for laptops', Zap],
+                      ['POWER_SAVE', 'Power Save (30 FPS)', 'Reduced power consumption', Shield],
+                    ] as const
+                  ).map(([qual, name, desc, Icon]) => (
+                    <button
+                      key={qual}
+                      type="button"
+                      onClick={() => handleSetMotionQuality(qual)}
+                      className={`text-left p-2.5 rounded-xl border transition-all ${
+                        motionQuality === qual
+                          ? 'border-emerald-400 bg-emerald-500/20 text-white shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                          : 'border-white/10 bg-slate-900/60 text-slate-300 hover:border-white/20 hover:bg-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <Icon className={`w-3.5 h-3.5 ${motionQuality === qual ? 'text-emerald-400' : 'text-slate-400'}`} />
+                        {motionQuality === qual && <Check className="w-3 h-3 text-emerald-400 shrink-0" />}
+                      </div>
+                      <div className="text-[10px] font-black">{name}</div>
+                      <p className="text-[8px] text-slate-400 mt-0.5 leading-snug">{desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Lighting & Atmosphere */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-cyan-300 block mb-2">
+                  Atmosphere & Lighting
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSetIsDay(true)}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
+                      isDay
+                        ? 'border-amber-400 bg-amber-500/20 text-white shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+                        : 'border-white/10 bg-slate-900/60 text-slate-300 hover:border-white/20'
+                    }`}
+                  >
+                    <Sun className={`w-4 h-4 ${isDay ? 'text-amber-400' : 'text-slate-400'}`} />
+                    <div className="text-left">
+                      <div className="text-[11px] font-black">Day Match</div>
+                      <div className="text-[9px] text-slate-400">Natural daylight sky</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSetIsDay(false)}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
+                      !isDay
+                        ? 'border-blue-400 bg-blue-500/20 text-white shadow-[0_0_15px_rgba(59,130,246,0.25)]'
+                        : 'border-white/10 bg-slate-900/60 text-slate-300 hover:border-white/20'
+                    }`}
+                  >
+                    <Moon className={`w-4 h-4 ${!isDay ? 'text-blue-300' : 'text-slate-400'}`} />
+                    <div className="text-left">
+                      <div className="text-[11px] font-black">Floodlit Night</div>
+                      <div className="text-[9px] text-slate-400">Night stadium lights</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Visual Aids & Customizer */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-cyan-300 block mb-2">
+                  Visual Tools & Overlays
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDebugSkeleton((v) => !v)}
+                    className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
+                      showDebugSkeleton
+                        ? 'border-emerald-400 bg-emerald-500/20 text-white'
+                        : 'border-white/10 bg-slate-900/60 text-slate-300 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Crosshair className={`w-3.5 h-3.5 ${showDebugSkeleton ? 'text-emerald-400' : 'text-slate-400'}`} />
+                      <span className="text-[10px] font-bold">Debug Skeletons</span>
+                    </div>
+                    {showDebugSkeleton && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSettingsModal(false);
+                      setShowKitPreview(true);
+                    }}
+                    className="flex items-center gap-2 p-2.5 rounded-xl border border-white/10 bg-slate-900/60 text-slate-300 hover:border-cyan-400 hover:text-white transition-all text-left"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    <div>
+                      <span className="text-[10px] font-bold block">Team Kit Preview</span>
+                      <span className="text-[8px] text-slate-400">View team colors & jerseys</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3 border-t border-white/10 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(false)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-[11px] font-black uppercase tracking-wider shadow-lg hover:from-cyan-400 hover:to-blue-500 transition-all cursor-pointer"
+              >
+                Apply & Done
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

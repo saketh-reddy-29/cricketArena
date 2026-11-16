@@ -14,7 +14,10 @@ export const BOUNDARY_M = 66;             // rope radius (m)
 export const OUTFIELD_M = 74;             // grass radius (m)
 export const PX_PER_M = 12.44;
 export const BOUNDARY_PX = 268;
-const NEAR_PX = 120;                      // inside this the map is true scale
+// The inner zone up to 175 px (~27.5m, representing the 30-yard circle, pitch, and slip cordon)
+// stays at true cricket scale (12.44 px/m) so wicketkeeper, slips, and ring fielders occupy
+// authentic cricketing positions without being blown into the deep outfield.
+const NEAR_PX = 175;
 const NEAR_M = NEAR_PX / PX_PER_M;
 const FAR_SLOPE = (BOUNDARY_M - NEAR_M) / (BOUNDARY_PX - NEAR_PX);
 

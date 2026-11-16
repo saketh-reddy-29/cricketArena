@@ -361,27 +361,27 @@ function AuctionScreen({
   const currentBidCr = (currentBid / 10000000).toFixed(2);
 
   return (
-    <Html position={[0, 5.3, -4.5]} center distanceFactor={13}>
+    <Html position={[0, 5.25, -4.5]} center distanceFactor={14}>
       <div
         style={{
-          width: 560,
-          minHeight: 280,
-          padding: 14,
+          width: 410,
+          minHeight: 195,
+          padding: 10,
           boxSizing: 'border-box',
           display: 'grid',
-          gridTemplateColumns: '136px minmax(0, 1fr) 150px',
-          gap: 14,
+          gridTemplateColumns: '95px minmax(0, 1fr) 110px',
+          gap: 10,
           alignItems: 'center',
           position: 'relative',
           color: '#f7fbff',
           fontFamily: 'Arial,sans-serif',
           background: 'linear-gradient(135deg, rgba(14,34,88,0.98), rgba(4,14,44,0.99) 58%, rgba(5,32,90,0.98))',
           border: phase === 'sold' ? '2.5px solid #f5b82e' : '2px solid rgba(115,181,255,0.95)',
-          borderRadius: 18,
+          borderRadius: 14,
           boxShadow:
             phase === 'sold'
-              ? '0 0 0 6px rgba(245,184,46,0.4), 0 0 45px rgba(245,184,46,0.7), 0 20px 42px rgba(0,0,0,0.6)'
-              : '0 0 0 5px rgba(28,72,190,0.3), 0 0 34px rgba(44,129,255,0.65), 0 16px 38px rgba(0,0,0,0.55)',
+              ? '0 0 0 4px rgba(245,184,46,0.35), 0 0 35px rgba(245,184,46,0.6), 0 16px 36px rgba(0,0,0,0.6)'
+              : '0 0 0 4px rgba(28,72,190,0.25), 0 0 25px rgba(44,129,255,0.55), 0 14px 30px rgba(0,0,0,0.55)',
         }}
       >
         {/* SOLD Celebration Broadcast Banner */}
@@ -391,10 +391,10 @@ function AuctionScreen({
               position: 'absolute',
               inset: 0,
               zIndex: 10,
-              borderRadius: 16,
+              borderRadius: 12,
               background: 'linear-gradient(135deg, rgba(8,24,65,0.96), rgba(4,12,36,0.98))',
               border: '2px solid #f5b82e',
-              padding: '16px 20px',
+              padding: '12px 16px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -404,46 +404,46 @@ function AuctionScreen({
           >
             <div
               style={{
-                fontSize: 10,
-                fontWeight: 900,
-                letterSpacing: 3,
-                color: '#f5b82e',
-                textTransform: 'uppercase',
-                marginBottom: 4,
-              }}
-            >
-              IPL 2026 MEGA AUCTION · OFFICIAL RESULT
-            </div>
-            <div
-              style={{
-                fontSize: 32,
+                fontSize: 9,
                 fontWeight: 900,
                 letterSpacing: 2,
                 color: '#f5b82e',
-                textShadow: '0 0 20px rgba(245,184,46,0.8)',
-                marginBottom: 8,
+                textTransform: 'uppercase',
+                marginBottom: 2,
+              }}
+            >
+              IPL 2026 MEGA AUCTION
+            </div>
+            <div
+              style={{
+                fontSize: 26,
+                fontWeight: 900,
+                letterSpacing: 2,
+                color: '#f5b82e',
+                textShadow: '0 0 16px rgba(245,184,46,0.8)',
+                marginBottom: 4,
               }}
             >
               SOLD!
             </div>
-            <div style={{ fontSize: 18, fontWeight: 900, color: '#ffffff', marginBottom: 2 }}>{player?.name}</div>
-            <div style={{ fontSize: 13, color: '#93c5fd', marginBottom: 10 }}>{player?.role}</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#ffffff', marginBottom: 2 }}>{player?.name}</div>
+            <div style={{ fontSize: 11, color: '#93c5fd', marginBottom: 8 }}>{player?.role}</div>
             <div
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: 6,
                 background: 'rgba(245,184,46,0.15)',
                 border: '1.5px solid #f5b82e',
-                borderRadius: 12,
-                padding: '6px 14px',
+                borderRadius: 10,
+                padding: '4px 10px',
               }}
             >
               {leadingTeam?.logo ? (
-                <img src={leadingTeam.logo} alt="" style={{ width: 26, height: 26, objectFit: 'contain' }} />
+                <img src={leadingTeam.logo} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />
               ) : null}
-              <span style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>{leadingTeam?.name || 'Winning Team'}</span>
-              <span style={{ fontSize: 16, fontWeight: 900, color: '#f5b82e' }}>₹{currentBidCr} CR</span>
+              <span style={{ fontSize: 13, fontWeight: 900, color: '#fff' }}>{leadingTeam?.name || 'Winning Team'}</span>
+              <span style={{ fontSize: 13, fontWeight: 900, color: '#f5b82e' }}>₹{currentBidCr} CR</span>
             </div>
           </div>
         ) : phase === 'unsold' ? (
@@ -452,7 +452,7 @@ function AuctionScreen({
               position: 'absolute',
               inset: 0,
               zIndex: 10,
-              borderRadius: 16,
+              borderRadius: 12,
               background: 'linear-gradient(135deg, rgba(30,10,18,0.96), rgba(12,4,8,0.98))',
               border: '2px solid #ef4444',
               display: 'flex',
@@ -463,19 +463,19 @@ function AuctionScreen({
           >
             <div
               style={{
-                fontSize: 28,
+                fontSize: 22,
                 fontWeight: 900,
                 color: '#ef4444',
-                letterSpacing: 3,
-                border: '3px solid #ef4444',
-                padding: '6px 20px',
-                borderRadius: 8,
+                letterSpacing: 2,
+                border: '2px solid #ef4444',
+                padding: '4px 14px',
+                borderRadius: 6,
                 transform: 'rotate(-4deg)',
               }}
             >
               UNSOLD
             </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#fca5a5', marginTop: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#fca5a5', marginTop: 8 }}>
               {player?.name} moves to Accelerated Round
             </div>
           </div>
@@ -484,12 +484,12 @@ function AuctionScreen({
         {/* Player Photo Presentation */}
         <div
           style={{
-            width: 136,
-            height: 180,
-            borderRadius: 14,
+            width: 95,
+            height: 125,
+            borderRadius: 10,
             overflow: 'hidden',
             background: 'linear-gradient(180deg, #163260, #081634)',
-            border: '2px solid rgba(255,255,255,0.22)',
+            border: '1.5px solid rgba(255,255,255,0.22)',
             position: 'relative',
           }}
         >
@@ -505,14 +505,14 @@ function AuctionScreen({
           <div
             style={{
               position: 'absolute',
-              bottom: 6,
-              left: 6,
-              right: 6,
+              bottom: 4,
+              left: 4,
+              right: 4,
               background: 'rgba(3,10,24,0.85)',
-              padding: '3px 6px',
-              borderRadius: 6,
+              padding: '2px 4px',
+              borderRadius: 4,
               textAlign: 'center',
-              fontSize: 10,
+              fontSize: 9,
               fontWeight: 800,
               color: '#f5b82e',
             }}
@@ -523,40 +523,40 @@ function AuctionScreen({
 
         {/* Center Details */}
         <div>
-          <div style={{ fontSize: 10, fontWeight: 900, color: '#f5b82e', letterSpacing: 2, textTransform: 'uppercase' }}>
+          <div style={{ fontSize: 9, fontWeight: 900, color: '#f5b82e', letterSpacing: 1.5, textTransform: 'uppercase' }}>
             NOW ON THE BLOCK
           </div>
-          <div style={{ fontSize: 24, fontWeight: 900, lineHeight: 1.15, marginTop: 2 }}>{player?.name || 'Player Nominated'}</div>
-          <div style={{ fontSize: 13, color: '#93c5fd', marginTop: 3 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.15, marginTop: 2 }}>{player?.name || 'Player Nominated'}</div>
+          <div style={{ fontSize: 11, color: '#93c5fd', marginTop: 2 }}>
             {player?.role} · {player?.nationality || 'India'}
           </div>
-          <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-            <div style={{ background: 'rgba(255,255,255,0.06)', padding: '6px 10px', borderRadius: 8 }}>
-              <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase' }}>Base Price</div>
-              <div style={{ fontSize: 14, fontWeight: 900, color: '#e2e8f0' }}>₹{basePriceCr} Cr</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <div style={{ background: 'rgba(255,255,255,0.06)', padding: '4px 8px', borderRadius: 6 }}>
+              <div style={{ fontSize: 8, color: '#94a3b8', textTransform: 'uppercase' }}>Base Price</div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#e2e8f0' }}>₹{basePriceCr} Cr</div>
             </div>
-            <div style={{ background: 'rgba(245,184,46,0.12)', padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(245,184,46,0.3)' }}>
-              <div style={{ fontSize: 9, color: '#f5b82e', textTransform: 'uppercase' }}>Current Bid</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#f5b82e' }}>₹{currentBidCr} Cr</div>
+            <div style={{ background: 'rgba(245,184,46,0.12)', padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(245,184,46,0.3)' }}>
+              <div style={{ fontSize: 8, color: '#f5b82e', textTransform: 'uppercase' }}>Current Bid</div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: '#f5b82e' }}>₹{currentBidCr} Cr</div>
             </div>
           </div>
         </div>
 
         {/* Right Status */}
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase' }}>Leading Franchise</div>
-          <div style={{ fontSize: 14, fontWeight: 900, color: leadingTeam ? '#fff' : '#64748b', marginTop: 2 }}>
+          <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase' }}>Leading Team</div>
+          <div style={{ fontSize: 12, fontWeight: 900, color: leadingTeam ? '#fff' : '#64748b', marginTop: 2 }}>
             {leadingTeam?.shortName || 'NO BID'}
           </div>
           <div
             style={{
-              marginTop: 14,
-              fontSize: 28,
+              marginTop: 10,
+              fontSize: 22,
               fontWeight: 900,
               color: timer <= 3 ? '#ef4444' : '#f5b82e',
               background: 'rgba(0,0,0,0.4)',
-              padding: '6px 12px',
-              borderRadius: 10,
+              padding: '4px 10px',
+              borderRadius: 8,
               display: 'inline-block',
             }}
           >
@@ -660,23 +660,28 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
         </mesh>
       </group>
 
-      {/* Big Screen Backwall Architecture */}
-      <mesh position={[0, 5.3, -4.8]}>
-        <boxGeometry args={[14.2, 5.6, 0.65]} />
+      {/* Sleek Compact Background TV Architecture */}
+      <mesh position={[0, 5.25, -4.75]}>
+        <boxGeometry args={[8.8, 4.2, 0.45]} />
         <meshStandardMaterial color="#071633" metalness={0.65} roughness={0.24} />
       </mesh>
-      <mesh position={[0, 5.3, -4.48]}>
-        <boxGeometry args={[13.55, 5.15, 0.05]} />
-        <meshBasicMaterial color="#102d75" />
+      <mesh position={[0, 5.25, -4.5]}>
+        <boxGeometry args={[8.4, 3.8, 0.04]} />
+        <meshBasicMaterial color="#0c235c" />
       </mesh>
-      {[-7.55, 7.55].map((x) => (
+      {/* Gold screen bezel */}
+      <mesh position={[0, 5.25, -4.49]}>
+        <boxGeometry args={[8.5, 3.9, 0.01]} />
+        <meshBasicMaterial color="#f5b82e" />
+      </mesh>
+      {[-5.0, 5.0].map((x) => (
         <group key={x} position={[x, 4.2, -2.2]}>
           <mesh>
-            <boxGeometry args={[0.3, 8.8, 0.5]} />
+            <boxGeometry args={[0.25, 8.2, 0.4]} />
             <meshStandardMaterial color="#172d69" metalness={0.4} roughness={0.32} emissive="#123a8a" emissiveIntensity={0.45} />
           </mesh>
-          <mesh position={[0, 0, 0.29]}>
-            <boxGeometry args={[0.07, 8.0, 0.04]} />
+          <mesh position={[0, 0, 0.24]}>
+            <boxGeometry args={[0.06, 7.5, 0.03]} />
             <meshBasicMaterial color="#ffbd55" />
           </mesh>
         </group>

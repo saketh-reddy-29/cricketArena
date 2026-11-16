@@ -846,7 +846,8 @@ export default function CricketActionVisualizer({
     let startTime: number | null = null;
     let contactTriggered = false;
     let lastUiFrameAt = -Infinity;
-    const uiFrameInterval = 1000 / 30;
+    // 60 Hz smooth frame pacing for buttery continuous ball, player, and camera motion
+    const uiFrameInterval = 1000 / 60;
 
     setBallVisible(true);
     setBailsFlying(false);
@@ -883,7 +884,8 @@ export default function CricketActionVisualizer({
       const elapsed = timestamp - startTime;
       const progress = Math.min(1, elapsed / totalDuration);
       pausedProgressRef.current = progress;
-      setAnimProgress(Math.round(progress * 100));
+      // High-precision smooth progress for fluid 3D skeletal IK and continuous ball trajectory
+      setAnimProgress(Number((progress * 100).toFixed(2)));
 
       let curX = path.start.x;
       let curY = path.start.y;
