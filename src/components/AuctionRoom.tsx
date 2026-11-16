@@ -9,11 +9,12 @@ import { useGameStore, GameState, Franchise, PlayerOwnershipStatus } from '../st
 import confetti from 'canvas-confetti';
 import { cn } from '../lib/utils';
 import { evaluateBid, AuctionState, FranchiseAIState, getBidDelay } from '../lib/auctionAI';
-import AuctionBroadcastStage from './AuctionBroadcastStage';
 import AuctionPlayer3DStage from './AuctionPlayer3DStage';
 import { getPlayerImage } from '../lib/playerImages';
 import { Player } from '../types/common';
 import { resolveTeamLogoUrl } from '../lib/teamLogos';
+
+const AuctionBroadcastStage = React.lazy(() => import('./AuctionBroadcastStage'));
 
 const createFranchiseAIState = (): FranchiseAIState => ({
   fatigueLevel: 10,
@@ -340,17 +341,25 @@ export default function AuctionRoom() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left / Central Stage: Current Player & Active Podium (8 cols) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
-          <AuctionBroadcastStage
-            franchises={franchises}
-            leadingTeamId={auctionLeadingTeamId}
-            selectedTeamId={selectedFranchiseId}
-            player={currentPlayer}
-            playerImage={getPlayerImage(currentPlayer)}
-            currentBid={auctionCurrentBid}
-            phase={auctionPhase}
-            timer={auctionTimer}
-            bidLog={bidLog}
-          />
+          <React.Suspense
+            fallback={
+              <div className="relative h-[500px] w-full rounded-3xl border border-[#e6b34b]/30 bg-[#030a1c] flex items-center justify-center text-[11px] font-black uppercase tracking-[0.2em] text-cyan-100/70">
+                Loading live auction broadcast...
+              </div>
+            }
+          >
+            <AuctionBroadcastStage
+              franchises={franchises}
+              leadingTeamId={auctionLeadingTeamId}
+              selectedTeamId={selectedFranchiseId}
+              player={currentPlayer}
+              playerImage={getPlayerImage(currentPlayer)}
+              currentBid={auctionCurrentBid}
+              phase={auctionPhase}
+              timer={auctionTimer}
+              bidLog={bidLog}
+            />
+          </React.Suspense>
           {/* Central Podium Card */}
           <div className="glass-card rounded-3xl p-6 relative overflow-hidden border border-white/10">
             {/* Ambient lighting effects */}
