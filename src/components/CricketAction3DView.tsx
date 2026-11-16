@@ -13,6 +13,7 @@ import { pickVariants, resolveKit, jerseyNumberFor, jerseyNameFor } from '../cha
 import { BallVisual } from '../physics/BallVisual';
 import { soundFX } from '../3d/CricketSoundFX';
 import { CricketArenaAction } from '../lib/cricketArenaAnimations';
+import type { DetailedBowlingPlan } from '../engine/ai/BowlingPlanEngine';
 import { Camera, Eye, Zap, Crosshair } from 'lucide-react';
 
 const PADDED_MODEL = '/models/cricket-arena/cartoon_sports_character_3d_model.glb';
@@ -49,6 +50,7 @@ export interface CricketAction3DViewProps {
     wicketType?: string;
     legalBall?: boolean;
     batterRuns?: number;
+    extraType?: 'Wide' | 'No Ball' | 'Bye' | 'Leg Bye';
     ballPath: { isAerial?: boolean };
   } | null;
   stage: ArenaStage;
@@ -72,6 +74,8 @@ export interface CricketAction3DViewProps {
   /** Bowling style text of the current bowler ('Right-arm fast', 'Left-arm orthodox' ...) */
   bowlerStyle?: string;
   bowlerRole?: string;
+  /** Tactical delivery selected by the match AI / captain. */
+  bowlingPlan?: DetailedBowlingPlan | null;
   /** Running between the wickets / walk-off + walk-in, driven by the visualizer so the next ball waits for it */
   batterTransition?: { kind: 'WICKET' | 'RUNS'; progress: number; runs: number } | null;
   strikerRuns?: number;
@@ -161,6 +165,7 @@ function StadiumScene({
     matchFormat,
     bowlerStyle,
     bowlerRole,
+    bowlingPlan,
     batterTransition,
     strikerRuns,
     strikerBalls,
@@ -182,7 +187,17 @@ function StadiumScene({
   );
 
   const bowling = bowlingKindOf(bowlerStyle);
-  const bowlAction: CricketArenaAction = bowling.kind === 'SPIN' ? 'bowl_spin' : bowling.kind === 'MEDIUM' ? 'bowl_seam' : 'bowl_fast';
+  const bowlAction: CricketArenaAction = useMemo(() => {
+    // Preserve the actual bowler style first, then specialize pace deliveries by
+    // the active tactical plan. This makes Yorker / Bouncer / slower / swing
+    // clips come from the same match decision that selected the delivery.
+    if (bowling.kind === 'SPIN') return 'bowl_spin';
+    if (bowlingPlan?.length === 'YORKER') return 'bowl_yorker';
+    if (bowlingPlan?.length === 'BOUNCER' || bowlingPlan?.length === 'SHORT') return 'bowl_bouncer';
+    if (bowlingPlan?.variation === 'SLOWER_BALL') return 'bowl_slower';
+    if (bowlingPlan?.variation === 'SWING' || bowlingPlan?.variation === 'REVERSE_SWING') return 'bowl_swing';
+    return bowling.kind === 'MEDIUM' ? 'bowl_seam' : 'bowl_fast';
+  }, [bowling.kind, bowlingPlan]);
   const strikerWorld = toWorld(strikerPos);
   const nonStrikerWorld = toWorld(nonStrikerPos);
   const bowlerWorld = toWorld(bowlerPos);
