@@ -497,6 +497,48 @@ function StadiumScene({
         );
       })}
 
+      {/* Bowler-end umpire: calls wickets, no-balls, wides and sixes. */}
+      <CharacterInstance
+        modelUrl={LIGHT_MODEL}
+        position={[0, -11.35]}
+        yaw={0}
+        action={
+          stage === 'OUTCOME' && delivery?.wicket
+            ? 'umpireOut'
+            : stage === 'OUTCOME' && delivery?.extraType === 'Wide'
+            ? 'umpireWide'
+            : stage === 'OUTCOME' && delivery?.extraType === 'No Ball'
+            ? 'umpireNoBall'
+            : stage === 'OUTCOME' && delivery?.totalRuns === 6
+            ? 'umpireSix'
+            : 'idle'
+        }
+        progress={localProgress}
+        team={bowlingTeamName}
+        format={matchFormat}
+        kitVariant={kitVariants.bowling}
+        kitRole="umpire"
+      />
+
+      {/* Square-leg umpire: gives the boundary-four signal and assists run-out decisions. */}
+      <CharacterInstance
+        modelUrl={LIGHT_MODEL}
+        position={[8.5, 0.8]}
+        yaw={-Math.PI / 2}
+        action={
+          stage === 'OUTCOME' && delivery?.wicket && (delivery.wicketType === 'Run Out' || delivery.wicketType === 'Stumped')
+            ? 'umpireOut'
+            : stage === 'OUTCOME' && delivery?.totalRuns === 4
+            ? 'umpireFour'
+            : 'idle'
+        }
+        progress={localProgress}
+        team={bowlingTeamName}
+        format={matchFormat}
+        kitVariant={kitVariants.bowling}
+        kitRole="umpire"
+      />
+
       {/* Physical 3D Cricket Ball */}
       <BallVisual
         position={ball3DPos}
