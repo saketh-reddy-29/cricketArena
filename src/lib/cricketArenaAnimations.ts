@@ -27,6 +27,9 @@ export interface CricketArenaPose {
 export type CricketArenaAction =
   | 'idle'
   | 'ready'
+  | 'auctionSit'
+  | 'auctionBid'
+  | 'auctioneerCall'
   | 'walk'
   | 'jog'
   | 'sprint'
@@ -99,6 +102,9 @@ export type CricketArenaAction =
 export const CRICKET_ARENA_ACTIONS: readonly CricketArenaAction[] = [
   'idle',
   'ready',
+  'auctionSit',
+  'auctionBid',
+  'auctioneerCall',
   'walk',
   'jog',
   'sprint',
@@ -343,6 +349,41 @@ export function getCricketArenaPose(
       rhy: 0.5,
       head: Math.sin(clock * 3) * 0.05,
     };
+  } else if (action === 'auctionSit') {
+    // Franchise delegates sit low behind their desks with forearms toward the bid console.
+    pose = {
+      lean: 0.18,
+      crouch: 0.44,
+      lfx: -0.34,
+      rfx: 0.34,
+      lfy: 0,
+      rfy: 0,
+      lhx: 0.52,
+      lhy: 0.74 + Math.sin(clock * 1.8) * 0.015,
+      rhx: 0.58,
+      rhy: 0.74 + Math.sin(clock * 1.8 + 0.3) * 0.015,
+      head: Math.sin(clock * 1.2) * 0.025,
+    };
+  } else if (action === 'auctionBid') {
+    // Keep the delegate seated while one arm rises to signal a live bid.
+    pose = {
+      lean: 0.12,
+      crouch: 0.4,
+      lfx: -0.34,
+      rfx: 0.34,
+      lhx: 0.52,
+      lhy: 0.74,
+      rhx: 0.28,
+      rhy: 1.88,
+      latR: -0.12,
+      head: Math.sin(clock * 1.4) * 0.02,
+    };
+  } else if (action === 'auctioneerCall') {
+    pose = interpolateKeyframes([
+      [0, { lean: 0.05, lhx: 0.18, lhy: 0.92, rhx: 0.2, rhy: 0.9 }],
+      [0.45, { lean: -0.04, lhx: 0.18, lhy: 1.0, rhx: 0.3, rhy: 1.9, latR: -0.12 }],
+      [1, { lean: -0.04, lhx: 0.18, lhy: 1.0, rhx: 0.3, rhy: 1.9, latR: -0.12 }],
+    ], t);
   } else if (action === 'batIdle') {
     // True batting stance with subtle breathing motion
     pose = {
