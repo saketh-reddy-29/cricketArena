@@ -17,6 +17,8 @@ export interface CharacterInstanceProps {
   isLeftHanded?: boolean;
   /** Uniform scale from the player's height (1 = the model's nominal 182 cm). Never distorts proportions. */
   heightScale?: number;
+  /** Lower update rates for background characters keep multi-player scenes responsive. */
+  animationFps?: number;
   /** Receives the world position of the bat blade every frame (used to make the ball meet the bat). */
   batBladeRef?: React.MutableRefObject<THREE.Vector3 | null>;
   ballPos?: [number, number, number];
@@ -42,6 +44,7 @@ export function CharacterInstance({
   hasBat = false,
   isLeftHanded = false,
   heightScale = 1,
+  animationFps = 30,
   batBladeRef,
   ballPos,
   showDebugSkeleton = false,
@@ -142,7 +145,8 @@ export function CharacterInstance({
     if (!root || !modelWrapper) return;
 
     poseUpdateAccumulator.current += Math.min(delta, 0.05);
-    if (poseUpdateAccumulator.current < 1 / 30) return;
+    const frameInterval = 1 / Math.max(1, animationFps);
+    if (poseUpdateAccumulator.current < frameInterval) return;
     const frameDelta = Math.min(poseUpdateAccumulator.current, 0.05);
     poseUpdateAccumulator.current = 0;
 
