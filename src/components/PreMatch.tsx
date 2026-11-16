@@ -114,6 +114,13 @@ export default function PreMatch() {
     return players.filter((p) => opponentTeam.squad.includes(p.id));
   }, [isIPL, players, opponentTeam]);
 
+  // Previous XI belongs to the opponent's side of this fixture, not always team 2.
+  const opponentPreviousXI = currentMatch
+    ? currentMatch.team1Id === opponentTeam.id
+      ? currentMatch.team1PlayingXI || []
+      : currentMatch.team2PlayingXI || []
+    : [];
+
   // Opponent Tactical AI Playing XI
   const opponentOptimalSelection = useMemo(() => {
     return WorkloadRotationEngine.selectOptimalPlayingXI({
@@ -121,9 +128,9 @@ export default function PreMatch() {
       pitchType,
       format,
       fatigueMap: playerFatigue,
-      previousXI: currentMatch?.team2PlayingXI || [],
+      previousXI: opponentPreviousXI,
     });
-  }, [opponentSquad, pitchType, format, playerFatigue, currentMatch]);
+  }, [opponentSquad, pitchType, format, playerFatigue, opponentPreviousXI]);
 
   // Initial Squad Auto-Selection for User
   useEffect(() => {
