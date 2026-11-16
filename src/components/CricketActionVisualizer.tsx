@@ -182,7 +182,8 @@ interface FielderLiveState {
 const PITCH_CENTER: Point = { x: 300, y: 300 };
 const BOWLER_CREASE: Point = { x: 300, y: 410 };
 const BATTER_CREASE: Point = { x: 300, y: 190 };
-const NON_STRIKER_CREASE: Point = { x: 300, y: 400 };
+// Non-striker is offset to the side of the pitch so they never stand in bowler's delivery channel
+const NON_STRIKER_CREASE: Point = { x: 280, y: 400 };
 const BOUNDARY_RADIUS = 268;
 
 export const clampFielderCoordinate = (p: Point): Point => {
@@ -945,13 +946,13 @@ export default function CricketActionVisualizer({
 
         setBatRotation(Math.sin((1 - pTravel) * Math.PI) * 25);
 
-        // Batters running between wickets (Striker: 190 -> 400, Non-Striker: 400 -> 190)
+        // Batters running between wickets (Striker & Non-striker on opposite sides of the pitch)
         if (delivery.totalRuns > 0 && !delivery.wicket) {
           const runSpeed = Math.min(1, pTravel * (delivery.totalRuns >= 2 ? 1.8 : 1.1));
           const sY = BATTER_CREASE.y + (runSpeed * (NON_STRIKER_CREASE.y - BATTER_CREASE.y));
           const nsY = NON_STRIKER_CREASE.y - (runSpeed * (NON_STRIKER_CREASE.y - BATTER_CREASE.y));
-          setStrikerPos({ x: 300, y: sY });
-          setNonStrikerPos({ x: 300, y: nsY });
+          setStrikerPos({ x: 316, y: sY });
+          setNonStrikerPos({ x: 282, y: nsY });
         }
 
         if (delivery.wicket && delivery.wicketType === 'Bowled') {

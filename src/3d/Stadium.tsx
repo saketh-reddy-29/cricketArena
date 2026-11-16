@@ -38,61 +38,95 @@ function canvas(w: number, h: number) {
   return [c, c.getContext('2d')!] as const;
 }
 
+// Global texture cache to prevent regenerating on every component mount
+let cachedGrass: THREE.CanvasTexture | null = null;
+let cachedPitch: THREE.CanvasTexture | null = null;
+let cachedLed: THREE.CanvasTexture | null = null;
+let cachedSkyNight: THREE.CanvasTexture | null = null;
+let cachedSkyDay: THREE.CanvasTexture | null = null;
+let cachedLamps: THREE.CanvasTexture | null = null;
+
 function makeGrass(): THREE.CanvasTexture {
+  if (cachedGrass) return cachedGrass;
   const S = 2048; // covers +-OUTFIELD_M
   const [c, g] = canvas(S, S);
   const ppm = S / (OUTFIELD_M * 2);
-  g.fillStyle = '#2a8433'; g.fillRect(0, 0, S, S);
-  const stripe = 5 * ppm;                       // 5 m mowing stripes parallel to the pitch
+  // Rich, vibrant emerald outfield base
+  g.fillStyle = '#186e24'; g.fillRect(0, 0, S, S);
+  const stripe = 5.2 * ppm; // 5.2 m lawn-mower stripes parallel to the pitch
   for (let x = 0, i = 0; x < S; x += stripe, i++) {
-    g.fillStyle = i % 2 ? 'rgba(130,210,90,0.20)' : 'rgba(10,70,25,0.16)';
+    g.fillStyle = i % 2 ? 'rgba(40,165,65,0.24)' : 'rgba(12,82,24,0.22)';
     g.fillRect(x, 0, stripe, S);
   }
-  const r = rng(7);
-  for (let i = 0; i < 26000; i++) {             // grass noise
-    g.fillStyle = `rgba(${r() > 0.5 ? '200,255,150' : '10,60,20'},${0.03 + r() * 0.05})`;
-    g.fillRect(r() * S, r() * S, 2 + r() * 3, 2 + r() * 4);
+  const r = rng(77);
+  for (let i = 0; i < 32000; i++) { // fine grass blade noise
+    g.fillStyle = `rgba(${r() > 0.5 ? '180,245,120' : '8,65,16'},${0.04 + r() * 0.06})`;
+    g.fillRect(r() * S, r() * S, 2 + r() * 2.5, 2 + r() * 3.5);
   }
-  // 30-yard circle (dashed)
-  g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 4; g.setLineDash([16, 14]);
+  // Subtle radial outfield sheen
+  const radShade = g.createRadialGradient(S / 2, S / 2, 10, S / 2, S / 2, S * 0.48);
+  radShade.addColorStop(0, 'rgba(255,255,255,0.06)');
+  radShade.addColorStop(0.7, 'rgba(0,0,0,0.0)');
+  radShade.addColorStop(1, 'rgba(0,30,8,0.28)');
+  g.fillStyle = radShade;
+  g.fillRect(0, 0, S, S);
+
+  // 30-yard fielding circle with crisp white dash markings
+  g.strokeStyle = 'rgba(255,255,255,0.85)'; g.lineWidth = 4.5; g.setLineDash([18, 14]);
   g.beginPath(); g.arc(S / 2, S / 2, 27.4 * ppm, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+  
+  // 30-yard circle disc markers (circular discs placed around the ring)
+  const numDiscs = 24;
+  for (let i = 0; i < numDiscs; i++) {
+    const angle = (i / numDiscs) * Math.PI * 2;
+    const dx = S / 2 + Math.cos(angle) * (27.4 * ppm);
+    const dy = S / 2 + Math.sin(angle) * (27.4 * ppm);
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(dx, dy, 4.5, 0, Math.PI * 2);
+    g.fill();
+  }
+
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  cachedGrass = t;
   return t;
 }
 
 function makePitch(): THREE.CanvasTexture {
+  if (cachedPitch) return cachedPitch;
   const W = 256, H = 1024;
   const [c, g] = canvas(W, H);
   const grad = g.createLinearGradient(0, 0, W, 0);
-  grad.addColorStop(0, '#b99763'); grad.addColorStop(0.5, '#d2b37d'); grad.addColorStop(1, '#b99763');
+  grad.addColorStop(0, '#b38d58'); grad.addColorStop(0.5, '#cdae77'); grad.addColorStop(1, '#b38d58');
   g.fillStyle = grad; g.fillRect(0, 0, W, H);
-  const r = rng(3);
-  for (let i = 0; i < 2600; i++) {
-    g.fillStyle = `rgba(${r() > 0.5 ? '120,85,50' : '240,215,170'},${0.05 + r() * 0.10})`;
-    g.fillRect(r() * W, r() * H, 1 + r() * 4, 1 + r() * 6);
+  const r = rng(33);
+  for (let i = 0; i < 3400; i++) {
+    g.fillStyle = `rgba(${r() > 0.5 ? '100,75,40' : '245,225,185'},${0.05 + r() * 0.12})`;
+    g.fillRect(r() * W, r() * H, 1 + r() * 3, 1 + r() * 5);
   }
-  // wear patches at both ends (good length / footmarks)
-  for (const yy of [H * 0.2, H * 0.8]) {
-    const rg = g.createRadialGradient(W / 2, yy, 4, W / 2, yy, 70);
-    rg.addColorStop(0, 'rgba(110,80,45,0.35)'); rg.addColorStop(1, 'rgba(110,80,45,0)');
-    g.fillStyle = rg; g.fillRect(0, yy - 80, W, 160);
+  // Authentic wear patches & bowler footmarks at good length areas
+  for (const yy of [H * 0.18, H * 0.82]) {
+    const rg = g.createRadialGradient(W / 2, yy, 6, W / 2, yy, 75);
+    rg.addColorStop(0, 'rgba(95,68,35,0.48)'); rg.addColorStop(0.6, 'rgba(125,92,52,0.22)'); rg.addColorStop(1, 'rgba(110,80,45,0)');
+    g.fillStyle = rg; g.fillRect(0, yy - 85, W, 170);
   }
-  // creases (real dimensions): width 3.05 m, length 20.12 m
+  // Professional pitch creases: popping crease, bowling crease, return creases
   const mx = (m: number) => (m / 3.05) * W;
   const my = (m: number) => (m / 20.12) * H;
-  g.strokeStyle = '#f5f5f0'; g.lineWidth = 3;
+  g.strokeStyle = '#ffffff'; g.lineWidth = 3.5;
   for (const end of [0, 1]) {
     const dir = end === 0 ? 1 : -1; const base = end === 0 ? 0 : H;
-    const bowl = base + dir * my(0.0);              // stump line is at the very end
-    const pop = base + dir * my(1.22);
+    const bowl = base + dir * my(0.0);              // stump line
+    const pop = base + dir * my(1.22);              // popping crease
     g.beginPath(); g.moveTo(0, pop); g.lineTo(W, pop); g.stroke();              // popping crease
-    g.beginPath(); g.moveTo(mx(1.525 - 1.32), bowl); g.lineTo(mx(1.525 - 1.32), pop + dir * my(1.0)); g.stroke(); // return creases
-    g.beginPath(); g.moveTo(mx(1.525 + 1.32), bowl); g.lineTo(mx(1.525 + 1.32), pop + dir * my(1.0)); g.stroke();
-    g.beginPath(); g.moveTo(mx(1.525 - 1.32), bowl + dir * 2); g.lineTo(mx(1.525 + 1.32), bowl + dir * 2); g.stroke();  // bowling crease
+    g.beginPath(); g.moveTo(mx(1.525 - 1.32), bowl); g.lineTo(mx(1.525 - 1.32), pop + dir * my(1.2)); g.stroke(); // return creases
+    g.beginPath(); g.moveTo(mx(1.525 + 1.32), bowl); g.lineTo(mx(1.525 + 1.32), pop + dir * my(1.2)); g.stroke();
+    g.beginPath(); g.moveTo(mx(1.525 - 1.32), bowl); g.lineTo(mx(1.525 + 1.32), bowl); g.stroke();  // bowling crease
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  cachedPitch = t;
   return t;
 }
 
@@ -100,20 +134,19 @@ function makeCrowd(seed: number): THREE.CanvasTexture {
   const [c, g] = canvas(2048, 256);
   g.fillStyle = '#10182a'; g.fillRect(0, 0, 2048, 256);
   const r = rng(seed);
-  const pal = ['#1b4fc0', '#d98e12', '#c9ccd8', '#b02a30', '#2a8fb8', '#c9b018', '#5b3aa8', '#17804b', '#d96a16', '#101a3a', '#101a3a', '#1a2548', '#1a2548'];
+  const pal = ['#1d54d4', '#e29712', '#d5d8e6', '#c22d34', '#28a2d1', '#d4b81c', '#6840b8', '#1a9155', '#e27218', '#162244', '#1f2d58'];
   for (let row = 0; row < 26; row++) {
     const y = 6 + row * 9.6;
-    for (let x = 0; x < 2048; x += 6 + r() * 3) {
+    for (let x = 0; x < 2048; x += 5.5 + r() * 3) {
       const col = pal[Math.floor(r() * pal.length)];
       g.fillStyle = col; g.beginPath(); g.arc(x, y + 3, 3.4, 0, Math.PI * 2); g.fill();           // body
       g.fillStyle = r() > 0.5 ? '#e0a98a' : '#8a5a3c'; g.beginPath(); g.arc(x, y - 2, 2.2, 0, Math.PI * 2); g.fill(); // head
     }
   }
-  g.fillStyle = 'rgba(0,0,10,0.28)';   // row shadows
+  g.fillStyle = 'rgba(0,0,10,0.32)';   // row shadows
   for (let row = 0; row < 26; row++) g.fillRect(0, 12 + row * 9.6, 2048, 2);
-  // soften: spectators should read as a crowd, not as noise
   const [c2, g2] = canvas(2048, 256);
-  g2.filter = 'blur(1.1px) saturate(0.85) brightness(0.92)';
+  g2.filter = 'blur(1.0px) saturate(1.05) brightness(1.02)';
   g2.drawImage(c, 0, 0);
   const t = new THREE.CanvasTexture(c2);
   t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
@@ -121,38 +154,70 @@ function makeCrowd(seed: number): THREE.CanvasTexture {
 }
 
 function makeLedBoard(): THREE.CanvasTexture {
+  if (cachedLed) return cachedLed;
   const [c, g] = canvas(2048, 64);
-  const cols = ['#0a1f78', '#1b37c8', '#0b2a8f', '#7a1fa8', '#d6261f', '#0e7d92'];
+  const sponsors = [
+    { name: 'CRIC ARENA', bg: '#092182', text: '#ffffff' },
+    { name: 'POWERPLAY', bg: '#c72418', text: '#fff3d6' },
+    { name: 'MAXIMUM SIX', bg: '#0b7285', text: '#d3f9d8' },
+    { name: 'CHAMPIONSHIP', bg: '#5c1ea6', text: '#ffd43b' },
+    { name: 'CRIC ARENA', bg: '#1864ab', text: '#ffffff' },
+    { name: 'FAST BOWLER', bg: '#d9480f', text: '#fff9db' },
+    { name: 'PREMIER LEAGUE', bg: '#0a1f78', text: '#ffd43b' },
+    { name: 'SUPER 4s & 6s', bg: '#087f5b', text: '#ffffff' },
+  ];
   const w = 256;
-  for (let i = 0; i < 8; i++) {
-    g.fillStyle = cols[i % cols.length]; g.fillRect(i * w, 0, w, 64);
-    g.fillStyle = 'rgba(255,255,255,0.9)'; g.font = 'italic 900 30px Arial, sans-serif'; g.textAlign = 'center';
-    g.fillText('CRICKET ARENA', i * w + w / 2, 42);
-    g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(i * w, 0, 3, 64);
-  }
+  sponsors.forEach((sp, i) => {
+    g.fillStyle = sp.bg; g.fillRect(i * w, 0, w, 64);
+    // Glowing top and bottom edge lines
+    g.fillStyle = '#ffdb4d'; g.fillRect(i * w, 0, w, 3);
+    g.fillStyle = '#ffdb4d'; g.fillRect(i * w, 61, w, 3);
+    g.fillStyle = sp.text; g.font = 'italic 900 28px Arial, sans-serif'; g.textAlign = 'center';
+    g.fillText(sp.name, i * w + w / 2, 42);
+    g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(i * w, 0, 3, 64);
+  });
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(10, 1); t.anisotropy = 8;
+  cachedLed = t;
   return t;
 }
 
 function makeSky(day = false): THREE.CanvasTexture {
+  if (day && cachedSkyDay) return cachedSkyDay;
+  if (!day && cachedSkyNight) return cachedSkyNight;
   const [c, g] = canvas(32, 512);
   const gr = g.createLinearGradient(0, 0, 0, 512);
-  if (day) { gr.addColorStop(0, '#2f78c8'); gr.addColorStop(0.55, '#6fb0ea'); gr.addColorStop(0.9, '#c4e2fa'); gr.addColorStop(1, '#e8f3fc'); }
-  else { gr.addColorStop(0, '#020615'); gr.addColorStop(0.55, '#0a1a4a'); gr.addColorStop(0.85, '#1c3a7a'); gr.addColorStop(1, '#2c4f92'); }
+  if (day) {
+    gr.addColorStop(0, '#1558b8'); // Deep broadcast blue zenith
+    gr.addColorStop(0.35, '#3a8ee2');
+    gr.addColorStop(0.7, '#72b5f2');
+    gr.addColorStop(0.9, '#bfe0fc');
+    gr.addColorStop(1, '#eaf4fd');
+  } else {
+    gr.addColorStop(0, '#010514'); // Atmospheric floodlit night sky
+    gr.addColorStop(0.4, '#081745');
+    gr.addColorStop(0.75, '#163372');
+    gr.addColorStop(0.92, '#234a94');
+    gr.addColorStop(1, '#2a55aa');
+  }
   g.fillStyle = gr; g.fillRect(0, 0, 32, 512);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  if (day) cachedSkyDay = t; else cachedSkyNight = t;
+  return t;
 }
 
 function makeLamps(): THREE.CanvasTexture {
+  if (cachedLamps) return cachedLamps;
   const [c, g] = canvas(256, 128);
-  g.fillStyle = '#d9e6ff'; g.fillRect(0, 0, 256, 128);
+  g.fillStyle = '#e4eeff'; g.fillRect(0, 0, 256, 128);
   for (let y = 0; y < 6; y++) for (let x = 0; x < 12; x++) {
     const rg = g.createRadialGradient(10 + x * 21, 11 + y * 21, 1, 10 + x * 21, 11 + y * 21, 10);
-    rg.addColorStop(0, '#ffffff'); rg.addColorStop(1, '#b8d0ff');
+    rg.addColorStop(0, '#ffffff'); rg.addColorStop(0.7, '#d6e6ff'); rg.addColorStop(1, '#96baff');
     g.fillStyle = rg; g.beginPath(); g.arc(10 + x * 21, 11 + y * 21, 9, 0, Math.PI * 2); g.fill();
   }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  cachedLamps = t;
+  return t;
 }
 
 /* ------------------------------------------------------------------ boards */
@@ -298,31 +363,39 @@ function StadiumImpl({ scoreboardData, stumpHit = false, isDay = false, crowdEne
 
   return (
     <group>
-      <fog attach="fog" args={isDay ? ['#b9d9f2', 220, 560] : ['#0b1a45', 150, 420]} />
-      {/* night sky dome */}
+      <fog attach="fog" args={isDay ? ['#b0d4f5', 280, 680] : ['#06112c', 220, 600]} />
+      {/* sky dome */}
       <mesh><sphereGeometry args={[520, 32, 24]} /><meshBasicMaterial map={sky} side={THREE.BackSide} fog={false} /></mesh>
 
       {/* outfield */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
         <circleGeometry args={[OUTFIELD_M, 128]} />
-        <meshStandardMaterial map={grass} roughness={0.95} />
+        <meshStandardMaterial map={grass} roughness={0.92} />
       </mesh>
       {/* pitch + square */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 0]} receiveShadow>
         <planeGeometry args={[12, 26]} />
-        <meshStandardMaterial color="#3aa043" roughness={0.95} transparent opacity={0.55} />
+        <meshStandardMaterial color="#227a2e" roughness={0.95} transparent opacity={0.65} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
         <planeGeometry args={[3.05, 20.12]} />
-        <meshStandardMaterial map={pitch} roughness={0.9} />
+        <meshStandardMaterial map={pitch} roughness={0.88} />
       </mesh>
 
       {/* wickets: +z = striker's end (animated), -z = bowler's end */}
       <Stumps z={PITCH_HALF} hit={stumpHit} refs={strikerRefs} />
       <Stumps z={-PITCH_HALF} />
 
-      {/* umpire at the bowler's end (simple figure, not a player) */}
+      {/* umpire at the bowler's end (generated design) */}
       <group position={[1.1, 0, -PITCH_HALF - 1.6]}>
+        <mesh position={[0, 0.85, 0]} castShadow><cylinderGeometry args={[0.2, 0.24, 1.2, 12]} /><meshStandardMaterial color="#f4f4f4" roughness={0.7} /></mesh>
+        <mesh position={[0, 1.62, 0]} castShadow><sphereGeometry args={[0.17, 14, 12]} /><meshStandardMaterial color="#d9a47c" /></mesh>
+        <mesh position={[0, 1.78, 0]}><cylinderGeometry args={[0.2, 0.2, 0.06, 14]} /><meshStandardMaterial color="#f4f4f4" /></mesh>
+        <mesh position={[0, 0.25, 0]} castShadow><cylinderGeometry args={[0.17, 0.17, 0.5, 10]} /><meshStandardMaterial color="#2b2f3a" /></mesh>
+      </group>
+
+      {/* umpire at square leg (generated design) */}
+      <group position={[20, 0, PITCH_HALF - 1.22]} rotation={[0, -Math.PI / 2, 0]}>
         <mesh position={[0, 0.85, 0]} castShadow><cylinderGeometry args={[0.2, 0.24, 1.2, 12]} /><meshStandardMaterial color="#f4f4f4" roughness={0.7} /></mesh>
         <mesh position={[0, 1.62, 0]} castShadow><sphereGeometry args={[0.17, 14, 12]} /><meshStandardMaterial color="#d9a47c" /></mesh>
         <mesh position={[0, 1.78, 0]}><cylinderGeometry args={[0.2, 0.2, 0.06, 14]} /><meshStandardMaterial color="#f4f4f4" /></mesh>
@@ -363,7 +436,7 @@ function StadiumImpl({ scoreboardData, stumpHit = false, isDay = false, crowdEne
       {/* outer rim wall */}
       <mesh position={[0, 24, 0]}>
         <cylinderGeometry args={[123, 123, 48, 160, 1, true]} />
-        <meshStandardMaterial color="#0d1630" side={THREE.BackSide} roughness={1} />
+        <meshStandardMaterial color="#1a2a4e" side={THREE.BackSide} roughness={0.85} />
       </mesh>
 
       {/* roof canopy + light strips */}

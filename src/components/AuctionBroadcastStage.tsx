@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import type { Franchise } from '../stores/useGameStore';
 import type { Player } from '../types/common';
 import { getPlayerAvatar } from '../lib/playerImages';
-import { CharacterInstance } from '../characters/CharacterInstance';
+import { CharacterInstance, CharacterErrorBoundary } from '../characters/CharacterInstance';
 
 const AUCTION_CHARACTER_MODEL = '/models/cricket-arena/cartoon_character_3d_model.glb';
 
@@ -156,28 +156,84 @@ function AuctionGavel({ phase }: { phase: string }) {
 function AuctionScreen({
   franchises, player, playerImage, currentBid, phase, timer, leadingTeam, bidLog,
 }: AuctionBroadcastStageProps & { leadingTeam: DeskTeam | undefined }) {
+  const basePriceCr = player?.price ? (player.price / 10000000).toFixed(2) : '2.00';
+  const currentBidCr = (currentBid / 10000000).toFixed(2);
+
   return (
     <Html position={[0, 4.25, -3.62]} center distanceFactor={12}>
       <div style={{
-        width: 540, minHeight: 274, padding: 14, boxSizing: 'border-box',
-        display: 'grid', gridTemplateColumns: '132px minmax(0, 1fr) 144px', gap: 14, alignItems: 'center',
+        width: 560, minHeight: 280, padding: 14, boxSizing: 'border-box',
+        display: 'grid', gridTemplateColumns: '136px minmax(0, 1fr) 150px', gap: 14, alignItems: 'center',
         position: 'relative', color: '#f7fbff', fontFamily: 'Arial,sans-serif',
-        background: 'linear-gradient(135deg, rgba(23,46,119,.98), rgba(5,18,53,.99) 58%, rgba(6,39,105,.98))',
-        border: '2px solid rgba(115,181,255,.95)', borderRadius: 18,
-        boxShadow: '0 0 0 5px rgba(28,72,190,.3), 0 0 34px rgba(44,129,255,.65), 0 16px 38px rgba(0,0,0,.55)',
+        background: 'linear-gradient(135deg, rgba(18,40,105,.98), rgba(4,14,44,.99) 58%, rgba(5,32,90,.98))',
+        border: phase === 'sold' ? '2.5px solid #f5b82e' : '2px solid rgba(115,181,255,.95)', borderRadius: 18,
+        boxShadow: phase === 'sold'
+          ? '0 0 0 6px rgba(245,184,46,.4), 0 0 45px rgba(245,184,46,.7), 0 20px 42px rgba(0,0,0,.6)'
+          : '0 0 0 5px rgba(28,72,190,.3), 0 0 34px rgba(44,129,255,.65), 0 16px 38px rgba(0,0,0,.55)',
       }}>
+        {/* SOLD Celebration Broadcast Banner */}
         {phase === 'sold' ? (
           <div style={{
-            position: 'absolute', right: 12, top: 10, transform: 'rotate(-10deg)',
-            border: '3px solid #ff3d50', color: '#ff4053', borderRadius: 7,
-            padding: '4px 10px', fontSize: 22, fontWeight: 1000, letterSpacing: 2,
-            background: 'rgba(5,10,35,.82)', textShadow: '0 0 10px rgba(255,20,50,.35)',
-          }}>SOLD</div>
+            position: 'absolute', inset: 0, zIndex: 10, borderRadius: 16,
+            background: 'linear-gradient(135deg, rgba(8,24,65,0.95), rgba(4,12,36,0.97))',
+            border: '2px solid #f5b82e', padding: '16px 20px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'inset 0 0 30px rgba(245,184,46,0.3)',
+          }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 14px', borderRadius: 20,
+              background: 'linear-gradient(90deg, #b45309, #d97706, #f59e0b)', color: '#fff',
+              fontSize: 12, fontWeight: 900, letterSpacing: 2.5, textTransform: 'uppercase',
+              boxShadow: '0 4px 15px rgba(245,158,11,0.5)',
+            }}>
+              🏆 PLAYER SOLD 🏆
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 1000, marginTop: 10, color: '#ffffff', textAlign: 'center' }}>
+              {player?.name}
+            </div>
+            <div style={{ fontSize: 13, color: '#cbd5e1', marginTop: 4 }}>
+              {player?.role} · {player?.nationality}
+            </div>
+            <div style={{
+              marginTop: 12, display: 'flex', alignItems: 'center', gap: 12,
+              background: 'rgba(2,8,26,0.85)', padding: '8px 18px', borderRadius: 12,
+              border: '1px solid rgba(245,184,46,0.6)',
+            }}>
+              {leadingTeam?.logo ? (
+                <img src={leadingTeam.logo} alt="" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+              ) : null}
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 800 }}>SOLD TO</div>
+                <div style={{ fontSize: 17, fontWeight: 1000, color: '#f5b82e' }}>
+                  {leadingTeam?.name || 'FRANCHISE'}
+                </div>
+              </div>
+              <div style={{ height: 28, width: 1, background: 'rgba(255,255,255,0.2)', margin: '0 4px' }} />
+              <div>
+                <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 800 }}>FINAL PRICE</div>
+                <div style={{ fontSize: 20, fontWeight: 1000, color: '#ffffff' }}>
+                  ₹{currentBidCr} Cr
+                </div>
+              </div>
+            </div>
+          </div>
         ) : null}
+
+        {/* UNSOLD Broadcast Stamp */}
+        {phase === 'unsold' ? (
+          <div style={{
+            position: 'absolute', right: 14, top: 12, transform: 'rotate(-8deg)', zIndex: 10,
+            border: '3px solid #ef4444', color: '#ef4444', borderRadius: 8,
+            padding: '5px 12px', fontSize: 20, fontWeight: 1000, letterSpacing: 2,
+            background: 'rgba(15,23,42,0.92)', textShadow: '0 0 12px rgba(239,68,68,0.5)',
+          }}>UNSOLD</div>
+        ) : null}
+
+        {/* Player Photo Card */}
         <div style={{
-          height: 176, borderRadius: 10, overflow: 'hidden',
-          border: '2px solid rgba(245,184,46,.95)', background: '#10244c',
-          boxShadow: '0 0 18px rgba(245,184,46,.2)',
+          height: 180, borderRadius: 12, overflow: 'hidden',
+          border: '2px solid rgba(245,184,46,.95)', background: '#0c1a38',
+          boxShadow: '0 0 20px rgba(245,184,46,.25)', position: 'relative',
         }}>
           {player ? (
             <img src={playerImage || getPlayerAvatar(player.name)} alt={player.name}
@@ -186,28 +242,60 @@ function AuctionScreen({
           ) : (
             <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#a9c6ff', fontWeight: 900 }}>PLAYER</div>
           )}
+          <div style={{
+            position: 'absolute', bottom: 0, insetInline: 0, padding: '4px 6px',
+            background: 'rgba(2,6,23,0.88)', textAlign: 'center', fontSize: 10, fontWeight: 800, color: '#93c5fd',
+          }}>
+            Base: ₹{basePriceCr} Cr
+          </div>
         </div>
+
+        {/* Center Nomination Details */}
         <div style={{ minWidth: 0, paddingTop: phase === 'sold' ? 25 : 0 }}>
-          <div style={{ color: '#83c6ff', fontSize: 10, fontWeight: 900, letterSpacing: 2.8 }}>CRIC ARENA · LIVE PLAYER AUCTION</div>
-          <div style={{ fontSize: 25, lineHeight: 1.08, fontWeight: 1000, marginTop: 8, textShadow: '0 2px 12px rgba(0,0,0,.45)' }}>
+          <div style={{ color: '#83c6ff', fontSize: 10, fontWeight: 900, letterSpacing: 2.8 }}>CRIC ARENA · LIVE IPL AUCTION</div>
+          <div style={{ fontSize: 24, lineHeight: 1.1, fontWeight: 1000, marginTop: 7, textShadow: '0 2px 12px rgba(0,0,0,.45)' }}>
             {player?.name || 'PLAYER NOMINATION'}
           </div>
-          <div style={{ color: '#d2def7', fontSize: 12, marginTop: 6 }}>
+          <div style={{ color: '#d2def7', fontSize: 12, marginTop: 5 }}>
             {(player?.role || 'Awaiting player') + '  ·  ' + (player?.nationality || 'Auction pool')}
           </div>
-          <div style={{ marginTop: 13, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 10px', borderRadius: 7, background: 'rgba(2,10,31,.72)', border: '1px solid rgba(114,181,255,.38)' }}>
+          <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 7, background: 'rgba(2,10,31,.72)', border: '1px solid rgba(114,181,255,.38)' }}>
             <span style={{ width: 8, height: 8, borderRadius: 10, background: phase === 'bidding' ? '#ff334b' : '#f5b82e', display: 'inline-block' }} />
             <span style={{ color: '#fff', fontWeight: 900, fontSize: 10, letterSpacing: 1.2 }}>{phase === 'bidding' ? 'BIDDING LIVE' : phase.toUpperCase()}</span>
           </div>
-          {leadingTeam ? <div style={{ color: '#ffdb73', fontSize: 11, fontWeight: 900, marginTop: 8 }}>LEADING: {leadingTeam.shortName}</div> : null}
+          {leadingTeam ? (
+            <div style={{ color: '#ffdb73', fontSize: 11, fontWeight: 900, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>LEADING:</span>
+              <span style={{ color: '#ffffff', background: leadingTeam.color || '#1e3a8a', padding: '2px 6px', borderRadius: 4 }}>
+                {leadingTeam.shortName}
+              </span>
+            </div>
+          ) : null}
         </div>
-        <div style={{ textAlign: 'center', padding: '15px 9px', borderRadius: 12, background: 'linear-gradient(180deg, rgba(2,14,42,.94), rgba(12,25,57,.98))', border: '1px solid rgba(245,184,46,.75)', boxShadow: 'inset 0 0 15px rgba(35,111,255,.13)' }}>
+
+        {/* Current Bid & Timer Panel */}
+        <div style={{
+          textAlign: 'center', padding: '14px 10px', borderRadius: 14,
+          background: 'linear-gradient(180deg, rgba(2,14,42,.95), rgba(12,25,57,.98))',
+          border: '1.5px solid rgba(245,184,46,.75)', boxShadow: 'inset 0 0 15px rgba(35,111,255,.15)',
+        }}>
           <div style={{ color: '#b9cce9', fontSize: 9, fontWeight: 900, letterSpacing: 1.4 }}>CURRENT BID</div>
-          <div style={{ color: '#fff', fontSize: 27, lineHeight: 1.1, fontWeight: 1000, marginTop: 8, whiteSpace: 'nowrap' }}>₹{(currentBid / 10000000).toFixed(2)} Cr</div>
-          <div style={{ color: timer <= 5 ? '#ff6579' : '#d8e5fa', fontSize: 11, marginTop: 8, fontWeight: 800 }}>{phase === 'bidding' ? timer + 's remaining' : phase === 'sold' ? 'PLAYER SOLD' : phase === 'unsold' ? 'NO SALE' : 'NEXT PLAYER'}</div>
+          <div style={{ color: '#fff', fontSize: 26, lineHeight: 1.1, fontWeight: 1000, marginTop: 6, whiteSpace: 'nowrap' }}>
+            ₹{currentBidCr} Cr
+          </div>
+          <div style={{
+            color: timer <= 5 ? '#ff6579' : '#d8e5fa',
+            fontSize: 11, marginTop: 8, fontWeight: 900,
+            padding: '3px 6px', borderRadius: 6,
+            background: timer <= 5 ? 'rgba(239,68,68,0.2)' : 'rgba(30,58,138,0.3)',
+          }}>
+            {phase === 'bidding' ? `${timer}s remaining` : phase === 'sold' ? 'PLAYER SOLD' : phase === 'unsold' ? 'NO SALE' : 'NEXT PLAYER'}
+          </div>
         </div>
+
+        {/* Latest Bidding Stream */}
         <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8, minHeight: 28, paddingTop: 7, borderTop: '1px solid rgba(160,195,255,.22)', overflow: 'hidden' }}>
-          <span style={{ color: '#8fc8ff', fontSize: 9, fontWeight: 1000, letterSpacing: 1.2, whiteSpace: 'nowrap' }}>LATEST BIDS</span>
+          <span style={{ color: '#8fc8ff', fontSize: 9, fontWeight: 1000, letterSpacing: 1.2, whiteSpace: 'nowrap' }}>LATEST BIDS:</span>
           {bidLog.slice(0, 3).map((entry) => {
             const bidder = franchises.find((team) => team.id === entry.teamId);
             return (
@@ -387,38 +475,42 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
         const activeBidder = team.id === leadingTeamId;
         const position: [number, number] = [onLeft ? -14.05 : 14.05, z];
         return (
-          <Suspense key={'auction-rep-' + team.id} fallback={<AuctionCharacterLoading position={position} color={team.color} />}>
-            <CharacterInstance
-              modelUrl={AUCTION_CHARACTER_MODEL}
-              position={position}
-              yaw={onLeft ? Math.PI / 2 : -Math.PI / 2}
-              action={activeBidder ? 'auctionBid' : 'auctionSit'}
-              progress={activeBidder ? 0.46 : 0.12}
-              team={team.name}
-              format="T20"
-              kitRole="fielder"
-              heightScale={0.68}
-              updateFps={activeBidder ? 12 : 8}
-              trackBall={false}
-              castShadow={false}
-            />
-          </Suspense>
+          <CharacterErrorBoundary key={'auction-rep-' + team.id} fallback={<AuctionCharacterLoading position={position} color={team.color} />}>
+            <Suspense fallback={<AuctionCharacterLoading position={position} color={team.color} />}>
+              <CharacterInstance
+                modelUrl={AUCTION_CHARACTER_MODEL}
+                position={position}
+                yaw={onLeft ? Math.PI / 2 : -Math.PI / 2}
+                action={activeBidder ? 'auctionBid' : 'auctionSit'}
+                progress={activeBidder ? 0.46 : 0.12}
+                team={team.name}
+                format="T20"
+                kitRole="fielder"
+                heightScale={0.68}
+                updateFps={activeBidder ? 12 : 8}
+                trackBall={false}
+                castShadow={false}
+              />
+            </Suspense>
+          </CharacterErrorBoundary>
         );
       })}
 
-      <Suspense fallback={<AuctionCharacterLoading position={[0, 2.05]} color="#f5b82e" />}>
-        <CharacterInstance
-          modelUrl={AUCTION_CHARACTER_MODEL}
-          position={[0, 2.05]}
-          yaw={0}
-          action={phase === 'sold' ? 'victory' : 'auctioneerCall'}
-          progress={phase === 'sold' ? 0.45 : 0.34}
-          heightScale={0.92}
-          updateFps={18}
-          trackBall={false}
-          castShadow={false}
-        />
-      </Suspense>
+      <CharacterErrorBoundary fallback={<AuctionCharacterLoading position={[0, 2.05]} color="#f5b82e" />}>
+        <Suspense fallback={<AuctionCharacterLoading position={[0, 2.05]} color="#f5b82e" />}>
+          <CharacterInstance
+            modelUrl={AUCTION_CHARACTER_MODEL}
+            position={[0, 2.05]}
+            yaw={0}
+            action={phase === 'sold' ? 'victory' : 'auctioneerCall'}
+            progress={phase === 'sold' ? 0.45 : 0.34}
+            heightScale={0.92}
+            updateFps={18}
+            trackBall={false}
+            castShadow={false}
+          />
+        </Suspense>
+      </CharacterErrorBoundary>
       <AuctionGavel phase={phase} />
 
       {/* Foreground broadcast floor graphics and audience-side seating rails. */}

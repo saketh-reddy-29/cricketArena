@@ -11,7 +11,7 @@
 
 export type KitFormat = 'TEST' | 'ODI' | 'T20';
 export type KitVariant = 'home' | 'away';
-export type KitRole = 'batter' | 'keeper' | 'fielder';
+export type KitRole = 'batter' | 'keeper' | 'fielder' | 'umpire';
 
 export interface KitSlots {
   jersey: string;
@@ -210,9 +210,28 @@ export function resolveKit(team: string, format?: string | null, variant: KitVar
   };
 }
 
-/** Per-role adjustments: bare hands on the model without gloves, keeper gloves/pads. */
+/** Per-role adjustments: bare hands on the model without gloves, keeper gloves/pads, official umpire attire. */
 export function applyRole(kit: ResolvedKit, role: KitRole, hasPadsModel: boolean): { slots: KitSlots; helmet: boolean } {
   const slots = { ...kit.slots };
+  if (role === 'umpire') {
+    return {
+      slots: {
+        ...slots,
+        jersey: '#f1f5f9',
+        sleeves: '#f1f5f9',
+        collar: '#0f172a',
+        pants: '#0f172a',
+        socks: '#020617',
+        shoes: '#020617',
+        accent: '#0284c7',
+        gloves: SKIN,
+        pads: '#0f172a',
+        helmet: '#f8fafc',
+        grille: '#334155',
+      },
+      helmet: false,
+    };
+  }
   if (!hasPadsModel) slots.gloves = SKIN; // 'cartoon_character' has bare hands
   if (role === 'keeper' && kit.format === 'TEST') slots.gloves = WHITE;
   return { slots, helmet: role === 'batter' || role === 'keeper' };

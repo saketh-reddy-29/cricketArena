@@ -17,8 +17,8 @@ export const CAMERA_LABELS: Record<CameraViewMode, string> = {
 };
 
 /** Default gameplay camera: behind and above the striker, offset slightly so the keeper never blocks the pitch. */
-export const EA_CAM_POS: [number, number, number] = [2.6, 4.6, 21.5];
-export const EA_CAM_FOV = 58;
+export const EA_CAM_POS: [number, number, number] = [2.0, 3.8, 18.0];
+export const EA_CAM_FOV = 52;
 
 export interface CameraSystemProps {
   mode?: CameraViewMode;
@@ -39,7 +39,7 @@ export function CameraSystem({
   focus = null,
 }: CameraSystemProps) {
   const { camera } = useThree();
-  const look = useRef(new THREE.Vector3(0, 1.0, 0));
+  const look = useRef(new THREE.Vector3(0, 1.15, -10));
   const droneAngle = useRef(Math.PI * 0.85);
   const clock = useRef(0);
   const tmpPos = useRef(new THREE.Vector3());
@@ -48,7 +48,7 @@ export function CameraSystem({
   useFrame((_, delta) => {
     if (mode === 'ORBIT') return;
     clock.current += delta;
-    const k = Math.min(1, delta * 4.0);
+    const k = Math.min(1, delta * 4.5);
     const pos = tmpPos.current;
     const tgt = tmpLook.current;
     let fov = 50;
@@ -57,20 +57,25 @@ export function CameraSystem({
     switch (mode) {
       case 'EA_BATTER': {
         pos.set(...EA_CAM_POS);
-        tgt.set(0, 7.5, -30);
+        // Look directly down the pitch towards the bowler's crease and stumps
+        tgt.set(0, 1.2, -9.5);
         fov = EA_CAM_FOV;
         if (focus) {
-          pos.set(focus[0] * 0.5 + 2.6, 5.6, 21.5 + Math.abs(focus[0]) * 0.15);
+          pos.set(focus[0] * 0.4 + 2.0, 4.2, 18.0 + Math.abs(focus[0]) * 0.12);
           tgt.set(focus[0] * 0.85, 1.1, focus[1] * 0.6);
         } else if (isBallTravelling && ballPos) {
-          tgt.set(ballPos[0] * 0.5, Math.max(0.8, ballPos[1] * 0.4), THREE.MathUtils.lerp(-30, ballPos[2], 0.6));
-          pos.x = THREE.MathUtils.lerp(pos.x, ballPos[0] * 0.2, 0.5);
+          tgt.set(ballPos[0] * 0.45, Math.max(0.7, ballPos[1] * 0.35), THREE.MathUtils.lerp(-10, ballPos[2], 0.5));
+          pos.x = THREE.MathUtils.lerp(pos.x, ballPos[0] * 0.15, 0.35);
         }
         break;
       }
       case 'BROADCAST':
-        pos.set(-9, 17, -34); tgt.set(0, 0.8, 4); fov = 44;
-        if (isBallTravelling && ballPos) tgt.set(ballPos[0] * 0.7, ballPos[1] * 0.5, ballPos[2] * 0.7);
+        pos.set(-8.5, 14.5, -30);
+        tgt.set(0, 1.15, 5);
+        fov = 42;
+        if (isBallTravelling && ballPos) {
+          tgt.set(ballPos[0] * 0.65, ballPos[1] * 0.45, ballPos[2] * 0.65);
+        }
         break;
       case 'BOWLER_CAM':
         pos.set(-1.8, 4.3, -22.5); tgt.set(strikerPos[0], 1.1, strikerPos[1]); fov = 46;

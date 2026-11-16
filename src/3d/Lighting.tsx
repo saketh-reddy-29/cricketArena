@@ -15,28 +15,43 @@ export function Lighting({ night = true }: { night?: boolean }) {
     // Day match: one strong sun (with shadows) + bright sky fill, floodlights off
     return (
       <>
-        <hemisphereLight args={['#dff0ff', '#4b7a3a', 1.15]} />
-        <ambientLight intensity={0.55} color="#fff6e8" />
+        <hemisphereLight args={['#e6f4ff', '#3d7a3a', 1.35]} />
+        <ambientLight intensity={0.75} color="#ffffff" />
         <directionalLight
-          position={[60, 90, 40]} intensity={2.6} color="#fff3d6" castShadow
-          shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-bias={-0.0004} shadow-normalBias={0.04}
-          shadow-camera-near={20} shadow-camera-far={260}
-          shadow-camera-left={-34} shadow-camera-right={34} shadow-camera-top={34} shadow-camera-bottom={-34}
+          position={[55, 95, 35]}
+          intensity={3.2}
+          color="#fff9ee"
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+          shadow-bias={-0.0004}
+          shadow-normalBias={0.04}
+          shadow-camera-near={20}
+          shadow-camera-far={260}
+          shadow-camera-left={-34}
+          shadow-camera-right={34}
+          shadow-camera-top={34}
+          shadow-camera-bottom={-34}
         />
+        {/* Fill from opposite side to eliminate dark player shadows */}
+        <directionalLight position={[-45, 60, -35]} intensity={1.15} color="#dbeeff" />
+        {/* Pitch area local ground fill */}
+        <pointLight position={[0, 10, 0]} intensity={2.8} color="#fff6e8" distance={45} decay={1.5} />
       </>
     );
   }
-  const k = 1;
+
+  // Night match: powerful 6-tower stadium floodlighting (2500+ lux broadcast atmosphere)
   return (
     <>
-      <hemisphereLight args={[night ? '#9db8ff' : '#cfe6ff', '#1d3a1d', night ? 0.30 : 1.1]} />
-      <ambientLight intensity={night ? 0.12 : 0.5} color="#c0d4f5" />
+      <hemisphereLight args={['#b8d4ff', '#244824', 0.85]} />
+      <ambientLight intensity={0.52} color="#cce0ff" />
 
-      {/* One reduced-resolution shadow bank; the opposite bank is fill-only for integrated GPUs. */}
+      {/* Main key floodlight bank (Tower 35) casting sharp stadium shadows */}
       <directionalLight
         position={towerPosition(35)}
-        intensity={1.35 * k}
-        color="#fff7e6"
+        intensity={2.4}
+        color="#fffbf0"
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -49,15 +64,19 @@ export function Lighting({ night = true }: { night?: boolean }) {
         shadow-camera-top={34}
         shadow-camera-bottom={-34}
       />
-      <directionalLight position={towerPosition(215)} intensity={0.65 * k} color="#dceaff" />
-      {/* Remaining towers fill the ground without shadows (keeps it fast) */}
-      {[towerPosition(90), towerPosition(145), towerPosition(270), towerPosition(325)].map((p, i) => (
-        <directionalLight key={`f${i}`} position={p} intensity={0.4 * k} color="#f2f7ff" />
-      ))}
+      {/* Secondary key floodlight bank (Tower 215) for cross-illumination */}
+      <directionalLight position={towerPosition(215)} intensity={1.65} color="#e6f0ff" />
 
-      {/* Rim lights for crisp character silhouettes */}
-      <pointLight position={[0, 8, -14]} intensity={14} color="#90cdf4" distance={34} decay={1.6} />
-      <pointLight position={[0, 8, 14]} intensity={14} color="#ffe4b5" distance={34} decay={1.6} />
+      {/* Remaining 4 towers provide balanced 360-degree stadium coverage */}
+      <directionalLight position={towerPosition(90)} intensity={1.1} color="#f0f5ff" />
+      <directionalLight position={towerPosition(145)} intensity={1.1} color="#fff6e8" />
+      <directionalLight position={towerPosition(270)} intensity={1.1} color="#eef4ff" />
+      <directionalLight position={towerPosition(325)} intensity={1.1} color="#f5f8ff" />
+
+      {/* Crisp character silhouette rim lighting & pitch illumination */}
+      <pointLight position={[0, 12, -12]} intensity={22} color="#a5d8ff" distance={38} decay={1.4} />
+      <pointLight position={[0, 12, 12]} intensity={22} color="#ffe8c0" distance={38} decay={1.4} />
+      <pointLight position={[0, 9, 0]} intensity={14} color="#ffffff" distance={30} decay={1.4} />
     </>
   );
 }

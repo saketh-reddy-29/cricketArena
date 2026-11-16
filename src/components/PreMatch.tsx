@@ -10,9 +10,14 @@ import JerseyPlayerImage from './JerseyPlayerImage';
 import { getIntlTeamLogoUrl } from '../data/crexIntlTeams';
 import { getPlayerRating } from '../lib/ratingEngine';
 import { WorkloadRotationEngine } from '../engine/ai/WorkloadRotationEngine';
-import { TossRecommendationEngine, describeGround, describePitch, describeWeather, summarizeConditionsForLive } from '../engine/conditions';
+import { describeGround, describePitch, describeWeather, summarizeConditionsForLive, TossRecommendationEngine } from '../engine/conditions';
 import type { MatchFormatKey } from '../engine/conditions';
 import type { Player } from '../types/common';
+import { useGLTF } from '@react-three/drei';
+
+// Preload 3D stadium character models in PreMatch so they are cached before live match starts
+useGLTF.preload('/models/cricket-arena/cartoon_sports_character_3d_model.glb');
+useGLTF.preload('/models/cricket-arena/cartoon_character_3d_model.glb');
 
 const IPL_TEAM_LOGOS: Record<string, string> = {
   MI:   'https://cricketvectors.akamaized.net/Teams/F.png',

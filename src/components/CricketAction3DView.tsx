@@ -5,9 +5,9 @@ import * as THREE from 'three';
 import { Stadium, StadiumScoreboardData } from '../3d/Stadium';
 import { Lighting } from '../3d/Lighting';
 import { CameraSystem, CameraViewMode, CAMERA_LABELS } from '../3d/CameraSystem';
-import { toWorld, BOUNDARY_M } from '../3d/worldScale';
+import { toWorld, BOUNDARY_M, CREASE_Z, PITCH_HALF } from '../3d/worldScale';
 import { computeBatterMotion, BatterAction } from '../presentation/batterMotion';
-import { CharacterInstance } from '../characters/CharacterInstance';
+import { CharacterInstance, CharacterErrorBoundary } from '../characters/CharacterInstance';
 import KitPreviewPanel from './KitPreviewPanel';
 import { bowlingKindOf, heightCmFor, heightScale } from '../characters/playerAppearance';
 import { pickVariants, resolveKit, jerseyNumberFor, jerseyNameFor } from '../characters/teamKits';
@@ -204,8 +204,35 @@ function StadiumScene({
   const bowling = bowlingKindOf(bowlerStyle);
   const bowlAction: CricketArenaAction = bowling.kind === 'SPIN' ? 'bowl_spin' : bowling.kind === 'MEDIUM' ? 'bowl_seam' : 'bowl_fast';
   const strikerWorld = toWorld(strikerPos);
-  const nonStrikerWorld = toWorld(nonStrikerPos);
-  const bowlerWorld = toWorld(bowlerPos);
+  
+  // Safe lateral offset for non-striker so they stand beside the pitch, never in the bowler's path
+  const rawNonStriker = toWorld(nonStrikerPos);
+  const nonStrikerWorld: [number, number] = useMemo(() => {
+    const latOffset = isLeftHanded ? 1.85 : -1.85;
+    const x = Math.abs(rawNonStriker[0]) < 0.6 ? latOffset : rawNonStriker[0];
+    return [x, rawNonStriker[1]];
+  }, [rawNonStriker, isLeftHanded]);
+
+  // Smooth bowler run-up position along pitch axis
+  const rawBowler = toWorld(bowlerPos);
+  const bowlerWorld: [number, number] = useMemo(() => {
+    if (stage === 'BOWLER_RELEASE') {
+      const pNorm = Math.min(1, progress / 45);
+      const startDepth = bowling.kind === 'SPIN' ? -16.0 : -25.5;
+      const endDepth = -CREASE_Z;
+      const followThroughDepth = -6.8;
+      const curZ = pNorm < 0.78
+        ? startDepth + (endDepth - startDepth) * (pNorm / 0.78)
+        : endDepth + (followThroughDepth - endDepth) * ((pNorm - 0.78) / 0.22);
+      const curX = THREE.MathUtils.lerp(0.55, -0.2, pNorm);
+      return [curX, curZ];
+    }
+    if (stage === 'PITCH_BOUNCE' || stage === 'BAT_CONTACT') {
+      return [-0.25, -6.6];
+    }
+    return [rawBowler[0], rawBowler[1]];
+  }, [stage, progress, rawBowler, bowling.kind]);
+
   const ballWorld = toWorld(ballPos);
 
   // Track audio triggers per stage to avoid repeating
@@ -396,78 +423,130 @@ function StadiumScene({
 
       {/* Striker Batsman */}
       {striker && sVisible && (
-        <Suspense fallback={<CharacterLoadingSilhouette position={sPos} yaw={sYaw} />}>
-        <CharacterInstance
-          modelUrl={PADDED_MODEL}
-          position={sPos}
-          yaw={sYaw}
-          jerseyNumber={jerseyNumberFor(striker?.name)}
-          jerseyName={jerseyNameFor(striker?.name)}
-          heightScale={heightScale(heightCmFor(striker?.name, striker?.role))}
-          batBladeRef={bladeRef}
-          action={sAct}
-          progress={localProgress}
-          hasBat={true}
-          isLeftHanded={isLeftHanded}
-          ballPos={ball3DPos}
-          showDebugSkeleton={showDebugSkeleton}
-          updateFps={30}
-          trackBall
-          castShadow
-          team={battingTeamName}
-          format={matchFormat}
-          kitVariant={kitVariants.batting}
-          kitRole="batter"
-        />
-        </Suspense>
+        <CharacterErrorBoundary fallback={<CharacterLoadingSilhouette position={sPos} yaw={sYaw} />}>
+          <Suspense fallback={<CharacterLoadingSilhouette position={sPos} yaw={sYaw} />}>
+            <CharacterInstance
+              modelUrl={PADDED_MODEL}
+              position={sPos}
+              yaw={sYaw}
+              jerseyNumber={jerseyNumberFor(striker?.name)}
+              jerseyName={jerseyNameFor(striker?.name)}
+              heightScale={heightScale(heightCmFor(striker?.name, striker?.role))}
+              batBladeRef={bladeRef}
+              action={sAct}
+              progress={localProgress}
+              hasBat={true}
+              isLeftHanded={isLeftHanded}
+              ballPos={ball3DPos}
+              showDebugSkeleton={showDebugSkeleton}
+              updateFps={30}
+              trackBall
+              castShadow
+              team={battingTeamName}
+              format={matchFormat}
+              kitVariant={kitVariants.batting}
+              kitRole="batter"
+            />
+          </Suspense>
+        </CharacterErrorBoundary>
       )}
 
       {/* Non-Striker Batsman */}
       {nonStriker && (
-        <Suspense fallback={<CharacterLoadingSilhouette position={nPos} yaw={nYaw} />}>
-        <CharacterInstance
-          modelUrl={PADDED_MODEL}
-          position={nPos}
-          yaw={nYaw}
-          jerseyNumber={jerseyNumberFor(nonStriker?.name)}
-          jerseyName={jerseyNameFor(nonStriker?.name)}
-          heightScale={heightScale(heightCmFor(nonStriker?.name, nonStriker?.role))}
-          action={nAct}
-          progress={localProgress}
-          hasBat={true}
-          showDebugSkeleton={showDebugSkeleton}
-          updateFps={18}
-          trackBall={false}
-          castShadow={false}
-          team={battingTeamName}
-          format={matchFormat}
-          kitVariant={kitVariants.batting}
-          kitRole="batter"
-        />
-        </Suspense>
+        <CharacterErrorBoundary fallback={<CharacterLoadingSilhouette position={nPos} yaw={nYaw} />}>
+          <Suspense fallback={<CharacterLoadingSilhouette position={nPos} yaw={nYaw} />}>
+            <CharacterInstance
+              modelUrl={PADDED_MODEL}
+              position={nPos}
+              yaw={nYaw}
+              jerseyNumber={jerseyNumberFor(nonStriker?.name)}
+              jerseyName={jerseyNameFor(nonStriker?.name)}
+              heightScale={heightScale(heightCmFor(nonStriker?.name, nonStriker?.role))}
+              action={nAct}
+              progress={localProgress}
+              hasBat={true}
+              showDebugSkeleton={showDebugSkeleton}
+              updateFps={18}
+              trackBall={false}
+              castShadow={false}
+              team={battingTeamName}
+              format={matchFormat}
+              kitVariant={kitVariants.batting}
+              kitRole="batter"
+            />
+          </Suspense>
+        </CharacterErrorBoundary>
       )}
 
       {/* Incoming batter walking out after a wicket */}
       {incoming && (
-        <Suspense fallback={<CharacterLoadingSilhouette position={incoming.pos} yaw={incoming.yaw} />}>
-        <CharacterInstance
-          modelUrl={PADDED_MODEL}
-          position={incoming.pos}
-          yaw={incoming.yaw}
-          action={incoming.action as CricketArenaAction}
-          progress={0}
-          hasBat={true}
-          showDebugSkeleton={showDebugSkeleton}
-          updateFps={18}
-          trackBall={false}
-          castShadow={false}
-          team={battingTeamName}
-          format={matchFormat}
-          kitVariant={kitVariants.batting}
-          kitRole="batter"
-        />
-        </Suspense>
+        <CharacterErrorBoundary fallback={<CharacterLoadingSilhouette position={incoming.pos} yaw={incoming.yaw} />}>
+          <Suspense fallback={<CharacterLoadingSilhouette position={incoming.pos} yaw={incoming.yaw} />}>
+            <CharacterInstance
+              modelUrl={PADDED_MODEL}
+              position={incoming.pos}
+              yaw={incoming.yaw}
+              action={incoming.action as CricketArenaAction}
+              progress={0}
+              hasBat={true}
+              showDebugSkeleton={showDebugSkeleton}
+              updateFps={18}
+              trackBall={false}
+              castShadow={false}
+              team={battingTeamName}
+              format={matchFormat}
+              kitVariant={kitVariants.batting}
+              kitRole="batter"
+            />
+          </Suspense>
+        </CharacterErrorBoundary>
       )}
+
+      {/* Bowler-end Umpire (Rigged 3D character with official signals: out, four, six) */}
+      <CharacterErrorBoundary fallback={<CharacterLoadingSilhouette position={[0, -PITCH_HALF - 2.2]} yaw={0} />}>
+        <Suspense fallback={<CharacterLoadingSilhouette position={[0, -PITCH_HALF - 2.2]} yaw={0} />}>
+          <CharacterInstance
+            modelUrl={LIGHT_MODEL}
+            position={[0, -PITCH_HALF - 2.2]}
+            yaw={0}
+            action={
+              stage === 'OUTCOME' && delivery?.wicket
+                ? 'umpireOut'
+                : stage === 'OUTCOME' && delivery?.totalRuns === 6
+                ? 'umpireSix'
+                : stage === 'OUTCOME' && delivery?.totalRuns === 4
+                ? 'umpireFour'
+                : 'ready'
+            }
+            progress={localProgress}
+            heightScale={1.0}
+            updateFps={18}
+            trackBall={stage === 'BALL_TRAVEL' || stage === 'OUTCOME'}
+            castShadow
+            format={matchFormat}
+            kitRole="umpire"
+          />
+        </Suspense>
+      </CharacterErrorBoundary>
+
+      {/* Square-leg Umpire */}
+      <CharacterErrorBoundary fallback={<CharacterLoadingSilhouette position={[isLeftHanded ? -20 : 20, CREASE_Z - 0.5]} yaw={isLeftHanded ? Math.PI / 2 : -Math.PI / 2} />}>
+        <Suspense fallback={<CharacterLoadingSilhouette position={[isLeftHanded ? -20 : 20, CREASE_Z - 0.5]} yaw={isLeftHanded ? Math.PI / 2 : -Math.PI / 2} />}>
+          <CharacterInstance
+            modelUrl={LIGHT_MODEL}
+            position={[isLeftHanded ? -20 : 20, CREASE_Z - 0.5]}
+            yaw={isLeftHanded ? Math.PI / 2 : -Math.PI / 2}
+            action="ready"
+            progress={0}
+            heightScale={0.98}
+            updateFps={12}
+            trackBall={false}
+            castShadow={false}
+            format={matchFormat}
+            kitRole="umpire"
+          />
+        </Suspense>
+      </CharacterErrorBoundary>
 
       {/* Bowler and Fielders */}
       {fielders.map((fielder) => {
@@ -503,39 +582,40 @@ function StadiumScene({
           action = 'handsUp';
         }
 
-        // Direction facing
+        // Direction facing: fielders face the striker unless actively tracking/chasing the ball
         const facingAngle = isBowler
           ? 0
           : isKeeper
           ? Math.PI
           : active
           ? Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1])
-          : Math.atan2(-location[0], -location[1]);
+          : Math.atan2(strikerWorld[0] - location[0], strikerWorld[1] - location[1]);
 
         return (
-          <Suspense key={fielder.id} fallback={<CharacterLoadingSilhouette position={location} yaw={facingAngle} />}>
-          <CharacterInstance
-            key={fielder.id}
-            modelUrl={isKeeper ? PADDED_MODEL : LIGHT_MODEL}
-            position={location}
-            yaw={facingAngle}
-            jerseyNumber={jerseyNumberFor(fielder.name)}
-            jerseyName={jerseyNameFor(fielder.name)}
-            heightScale={heightScale(heightCmFor(fielder.name, (fielder as { role?: string }).role, isBowler ? bowling.kind : undefined))}
-            isLeftHanded={isBowler && bowling.leftArm}
-            action={action}
-            progress={isBowler ? Math.min(1, progress / 45) : localProgress}
-            ballPos={ball3DPos}
-            showDebugSkeleton={showDebugSkeleton}
-            updateFps={isBowler || active ? 30 : isKeeper ? 18 : 12}
-            trackBall={isBowler || isKeeper || Boolean(active)}
-            castShadow={isBowler || Boolean(active)}
-            team={bowlingTeamName}
-            format={matchFormat}
-            kitVariant={kitVariants.bowling}
-            kitRole={isKeeper ? 'keeper' : 'fielder'}
-          />
-          </Suspense>
+          <CharacterErrorBoundary key={fielder.id} fallback={<CharacterLoadingSilhouette position={location} yaw={facingAngle} />}>
+            <Suspense fallback={<CharacterLoadingSilhouette position={location} yaw={facingAngle} />}>
+              <CharacterInstance
+                modelUrl={isKeeper ? PADDED_MODEL : LIGHT_MODEL}
+                position={location}
+                yaw={facingAngle}
+                jerseyNumber={jerseyNumberFor(fielder.name)}
+                jerseyName={jerseyNameFor(fielder.name)}
+                heightScale={heightScale(heightCmFor(fielder.name, (fielder as { role?: string }).role, isBowler ? bowling.kind : undefined))}
+                isLeftHanded={isBowler && bowling.leftArm}
+                action={action}
+                progress={isBowler ? Math.min(1, progress / 45) : localProgress}
+                ballPos={ball3DPos}
+                showDebugSkeleton={showDebugSkeleton}
+                updateFps={isBowler || active ? 30 : isKeeper ? 18 : 12}
+                trackBall={isBowler || isKeeper || Boolean(active)}
+                castShadow={isBowler || Boolean(active)}
+                team={bowlingTeamName}
+                format={matchFormat}
+                kitVariant={kitVariants.bowling}
+                kitRole={isKeeper ? 'keeper' : 'fielder'}
+              />
+            </Suspense>
+          </CharacterErrorBoundary>
         );
       })}
 
