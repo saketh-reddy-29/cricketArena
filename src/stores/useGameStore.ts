@@ -21,6 +21,9 @@ import {
   generateSeriesFixtures,
 } from '../engine/competition/seriesEngine';
 import {
+  createWorldCupConfig, generateGroupFixtures, nextWorldCupFixtures, computeGroupTables, WorldCupConfig, WorldCupFormat,
+} from '../engine/competition/worldCupEngine';
+import {
   canStartFixture,
   isFixtureLive,
   isUserFixture,
@@ -77,6 +80,9 @@ export enum GameState {
   ACHIEVEMENTS = 'achievements',
   SETTINGS = 'settings',
   FIXTURES = 'fixtures',
+  KIT_LAB = 'kit_lab',
+  WORLD_CUP = 'world_cup',
+  PRACTICE = 'practice',
 }
 
 export type ArenaTab = 'OVERVIEW' | 'MATCHES' | 'TEAMS' | 'TABLE' | 'PLAYERS' | 'PLAYER_STATS' | 'TEAM_STATS' | 'AUCTION' | 'SQUAD' | 'PLAYOFFS' | 'SERIES' | 'FIELD_SETUP';
@@ -227,6 +233,8 @@ interface GameStore {
   viewedPlayerId: string | null;
   /** Active bilateral series, if the player configured one. */
   seriesConfig: SeriesConfig | null;
+  /** Active World Cup (groups + knockouts), if the player created one. */
+  worldCupConfig: WorldCupConfig | null;
 
   setArenaId: (arenaId: string) => void;
   setFixturePlayingXI: (fixtureId: string, team1XI: string[], team2XI: string[]) => void;
@@ -279,6 +287,10 @@ interface GameStore {
   initializeIPLFranchises: () => void;
   generateSeasonFixtures: () => void;
   createSeries: (input: SeriesConfigInput) => void;
+  createWorldCup: (input: { name?: string; format: WorldCupFormat; teamIds: string[] }) => void;
+  /** Adds the semi-finals / final once the previous stage is complete. Returns how many fixtures were added. */
+  advanceWorldCup: () => number;
+  clearWorldCup: () => void;
   clearSeries: () => void;
   updateMatchResult: (matchId: string, scorecard: MatchScorecard) => void;
   setCurrentMatch: (matchId: string | null) => void;
@@ -368,6 +380,7 @@ export const useGameStore = create<GameStore>()(
       activeTab: 'OVERVIEW',
       viewedPlayerId: null,
       seriesConfig: null,
+      worldCupConfig: null,
 
       // Google Auth & Cloud Save initial state
       authUser: null,
@@ -955,6 +968,7 @@ export const useGameStore = create<GameStore>()(
         liveMatchState: null,
         viewingMatchId: null,
         seriesConfig: null,
+        worldCupConfig: null,
         activeTab: 'OVERVIEW',
         viewedPlayerId: null,
       }),
@@ -1070,6 +1084,27 @@ export const useGameStore = create<GameStore>()(
       }),
 
       clearSeries: () => set({ seriesConfig: null, fixtures: [], standings: [] }),
+
+      createWorldCup: (input) => set(() => {
+        const config = createWorldCupConfig(input);
+        const fixtureList = generateGroupFixtures(config);
+        const tables = computeGroupTables(config, fixtureList);
+        const standings: Standing[] = Object.values(tables).flat().map((r) => ({
+          teamId: r.teamId, played: 0, won: 0, lost: 0, drawn: 0, tied: 0, points: 0, nrr: 0,
+          runsScored: 0, oversFaced: 0, runsConceded: 0, oversBowled: 0, form: [],
+        }));
+        return { worldCupConfig: config, seriesConfig: null, fixtures: fixtureList, standings, selectedFormat: config.format as ArenaFormat };
+      }),
+
+      advanceWorldCup: () => {
+        const { worldCupConfig, fixtures } = get();
+        if (!worldCupConfig) return 0;
+        const added = nextWorldCupFixtures(worldCupConfig, fixtures);
+        if (added.length) set({ fixtures: [...fixtures, ...added] });
+        return added.length;
+      },
+
+      clearWorldCup: () => set({ worldCupConfig: null, fixtures: [], standings: [] }),
 
       updateMatchResult: (matchId, scorecard) => set((state) => {
         const existingFixture = state.fixtures.find(f => f.id === matchId);
@@ -1875,6 +1910,7 @@ export const useGameStore = create<GameStore>()(
         franchises: state.franchises,
         activeTab: state.activeTab,
         seriesConfig: state.seriesConfig,
+        worldCupConfig: state.worldCupConfig,
         // Persist the in-progress ball-by-ball state so a mid-match refresh
         // resumes exactly where it left off (spec: persistence & recovery).
         liveMatchState: state.liveMatchState,

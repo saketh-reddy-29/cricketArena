@@ -8,6 +8,13 @@ export interface BallVisualProps {
   scale?: number;
   spinVelocity?: number;
   isHitFlash?: boolean;
+  /** spin axis tilt (rad about the travel axis) and rate (rad/s): fast = upright seam backspin, spin = tilted axis, faster */
+  spinTilt?: number;
+  /** 0..1 squash when the ball is on the pitch */
+  squash?: number;
+  /** world position the ball is drawn towards (the bat blade), and how strongly (0..1) */
+  attractTo?: React.MutableRefObject<THREE.Vector3 | null>;
+  attract?: number;
 }
 
 export function BallVisual({
@@ -16,16 +23,26 @@ export function BallVisual({
   scale = 1.0,
   spinVelocity = 8.0,
   isHitFlash = false,
+  spinTilt = 0,
+  squash = 0,
+  attractTo,
+  attract = 0,
 }: BallVisualProps) {
   const ballGroupRef = useRef<THREE.Group>(null);
   const flashMeshRef = useRef<THREE.Mesh>(null);
+  const axis = useRef(new THREE.Vector3(1, 0, 0));
 
   useFrame((_, delta) => {
     if (ballGroupRef.current && visible) {
       ballGroupRef.current.position.set(position[0], position[1], position[2]);
-      // Spin seam
-      ballGroupRef.current.rotation.x += delta * spinVelocity;
-      ballGroupRef.current.rotation.z += delta * spinVelocity * 0.7;
+      // Bat contact: draw the ball onto the bat blade so contact is visible, then release it along its path
+      if (attract > 0 && attractTo?.current) ballGroupRef.current.position.lerp(attractTo.current, Math.min(1, attract));
+      const probe = (globalThis as { __arenaProbe?: { rec?: unknown[] } }).__arenaProbe;
+      if (probe?.rec) probe.rec.push({ t: performance.now(), raw: position, drawn: ballGroupRef.current.position.toArray(), bat: attractTo?.current?.toArray() ?? null, attract });
+      // Spin about an axis perpendicular to travel (seam stays visible), tilted for spinners
+      axis.current.set(Math.cos(spinTilt), 0, Math.sin(spinTilt)).normalize();
+      ballGroupRef.current.rotateOnAxis(axis.current, delta * spinVelocity);
+      ballGroupRef.current.scale.set(0.16 * scale * (1 + 0.1 * squash), 0.16 * scale * (1 - 0.2 * squash), 0.16 * scale * (1 + 0.1 * squash));
     }
 
     if (flashMeshRef.current) {

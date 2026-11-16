@@ -19,6 +19,9 @@ import StatisticsView from './components/pages/StatisticsView';
 import RecordsView from './components/pages/RecordsView';
 import AchievementsView from './components/pages/AchievementsView';
 import FixturesView from './components/pages/FixturesView';
+const KitSelectView = React.lazy(() => import('./components/pages/KitSelectView'));
+const WorldCupView = React.lazy(() => import('./components/pages/WorldCupView'));
+const PracticeView = React.lazy(() => import('./components/pages/PracticeView'));
 import { useGameStore, GameState } from './stores/useGameStore';
 
 export default function App() {
@@ -61,6 +64,11 @@ export default function App() {
         {gameState === GameState.RECORDS && <RecordsView />}
         {gameState === GameState.ACHIEVEMENTS && <AchievementsView />}
         {gameState === GameState.FIXTURES && <FixturesView />}
+        <React.Suspense fallback={<div className="p-8 text-center text-xs text-[#9DAEC4]">Loading...</div>}>
+          {gameState === GameState.KIT_LAB && <KitSelectView />}
+          {gameState === GameState.WORLD_CUP && <WorldCupView />}
+          {gameState === GameState.PRACTICE && <PracticeView />}
+        </React.Suspense>
 
         {/* Fallback View */}
         {![
@@ -79,6 +87,9 @@ export default function App() {
           GameState.RECORDS,
           GameState.ACHIEVEMENTS,
           GameState.FIXTURES,
+          GameState.KIT_LAB,
+          GameState.WORLD_CUP,
+          GameState.PRACTICE,
         ].includes(gameState) && (
           <div className="flex min-h-[60vh] items-center justify-center text-white">
             <div className="text-center p-8 rounded-3xl bg-[#10233D] border border-white/10 max-w-md">

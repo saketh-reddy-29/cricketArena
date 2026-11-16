@@ -3,8 +3,13 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Stadium, StadiumScoreboardData } from '../3d/Stadium';
 import { Lighting } from '../3d/Lighting';
-import { CameraSystem, CameraViewMode } from '../3d/CameraSystem';
+import { CameraSystem, CameraViewMode, CAMERA_LABELS } from '../3d/CameraSystem';
+import { toWorld, BOUNDARY_M } from '../3d/worldScale';
+import { computeBatterMotion, BatterAction } from '../presentation/batterMotion';
 import { CharacterInstance } from '../characters/CharacterInstance';
+import KitPreviewPanel from './KitPreviewPanel';
+import { bowlingKindOf, heightCmFor, heightScale } from '../characters/playerAppearance';
+import { pickVariants, resolveKit, jerseyNumberFor, jerseyNameFor } from '../characters/teamKits';
 import { BallVisual } from '../physics/BallVisual';
 import { soundFX } from '../3d/CricketSoundFX';
 import { CricketArenaAction } from '../lib/cricketArenaAnimations';
@@ -41,6 +46,9 @@ export interface CricketAction3DViewProps {
     shotType: string;
     totalRuns: number;
     wicket: boolean;
+    wicketType?: string;
+    legalBall?: boolean;
+    batterRuns?: number;
     ballPath: { isAerial?: boolean };
   } | null;
   stage: ArenaStage;
@@ -57,19 +65,25 @@ export interface CricketAction3DViewProps {
   target?: number;
   battingTeamName?: string;
   bowlingTeamName?: string;
+  /** Match format (IPL | T20 | ODI | TEST) - decides whites vs coloured kit */
+  matchFormat?: string;
+  initialCameraMode?: CameraViewMode;
+  initialDay?: boolean;
+  /** Bowling style text of the current bowler ('Right-arm fast', 'Left-arm orthodox' ...) */
+  bowlerStyle?: string;
+  bowlerRole?: string;
+  /** Running between the wickets / walk-off + walk-in, driven by the visualizer so the next ball waits for it */
+  batterTransition?: { kind: 'WICKET' | 'RUNS'; progress: number; runs: number } | null;
+  strikerRuns?: number;
+  strikerBalls?: number;
+  nonStrikerRuns?: number;
+  nonStrikerBalls?: number;
   bowlerName?: string;
   bowlerWickets?: number;
   bowlerRuns?: number;
   bowlerOvers?: number;
   bowlerBalls?: number;
   isLeftHanded?: boolean;
-}
-
-// Convert 2D field map coordinates (0..600, center at 300, 300) to 3D stadium coordinates
-function toWorld(point: Point): [number, number] {
-  const x = (point.x - 300) / 12.5;
-  const z = (300 - point.y) / 18.0;
-  return [x, z];
 }
 
 function getShotAction(shotType: string): CricketArenaAction {
@@ -116,12 +130,14 @@ function actionForFielder(fielder: ArenaPlayer, actionStr: string): CricketArena
 }
 
 function StadiumScene({
+  isDay = false,
   props,
   cameraMode,
   showDebugSkeleton,
 }: {
   props: CricketAction3DViewProps;
   cameraMode: CameraViewMode;
+  isDay?: boolean;
   showDebugSkeleton: boolean;
 }) {
   const {
@@ -142,6 +158,14 @@ function StadiumScene({
     target,
     battingTeamName = 'INDIA',
     bowlingTeamName = 'AUSTRALIA',
+    matchFormat,
+    bowlerStyle,
+    bowlerRole,
+    batterTransition,
+    strikerRuns,
+    strikerBalls,
+    nonStrikerRuns,
+    nonStrikerBalls,
     bowlerName,
     bowlerWickets,
     bowlerRuns,
@@ -150,6 +174,15 @@ function StadiumScene({
     isLeftHanded = false,
   } = props;
 
+  // Kits: batting side keeps its home colours; the bowling side switches to its away strip
+  // when the two shirts would look alike (e.g. India v Sri Lanka).
+  const kitVariants = useMemo(
+    () => pickVariants(battingTeamName, bowlingTeamName, matchFormat),
+    [battingTeamName, bowlingTeamName, matchFormat]
+  );
+
+  const bowling = bowlingKindOf(bowlerStyle);
+  const bowlAction: CricketArenaAction = bowling.kind === 'SPIN' ? 'bowl_spin' : bowling.kind === 'MEDIUM' ? 'bowl_seam' : 'bowl_fast';
   const strikerWorld = toWorld(strikerPos);
   const nonStrikerWorld = toWorld(nonStrikerPos);
   const bowlerWorld = toWorld(bowlerPos);
@@ -257,19 +290,21 @@ function StadiumScene({
     return {
       battingTeamName,
       bowlingTeamName,
-      score: score || { runs: 164, wickets: 3, overs: 17, balls: 2 },
+      battingColor: resolveKit(battingTeamName, matchFormat, kitVariants.batting).identity.primary,
+      bowlingColor: resolveKit(bowlingTeamName, matchFormat, kitVariants.bowling).slots.jersey,
+      score: score || { runs: 0, wickets: 0, overs: 0, balls: 0 },
       target,
       strikerName: striker?.name || 'Striker',
-      strikerRuns: 52,
-      strikerBalls: 31,
+      strikerRuns,
+      strikerBalls,
       nonStrikerName: nonStriker?.name || 'Non-striker',
-      nonStrikerRuns: 38,
-      nonStrikerBalls: 24,
+      nonStrikerRuns,
+      nonStrikerBalls,
       bowlerName: bowlerName || 'Bowler',
-      bowlerWickets: bowlerWickets ?? 1,
-      bowlerRuns: bowlerRuns ?? 28,
-      bowlerOvers: bowlerOvers ?? 3,
-      bowlerBalls: bowlerBalls ?? 2,
+      bowlerWickets,
+      bowlerRuns,
+      bowlerOvers,
+      bowlerBalls,
       recentEvent: eventNotice,
     };
   }, [
@@ -277,20 +312,51 @@ function StadiumScene({
     delivery,
     battingTeamName,
     bowlingTeamName,
+    matchFormat,
+    kitVariants,
     score,
     target,
     striker,
     nonStriker,
     bowlerName,
+    strikerRuns,
+    strikerBalls,
+    nonStrikerRuns,
+    nonStrikerBalls,
     bowlerWickets,
     bowlerRuns,
     bowlerOvers,
     bowlerBalls,
   ]);
 
+
+  // ---- Batter movement phase: running between the wickets, or walk-off / walk-in after a wicket ----
+  const motion = computeBatterMotion(batterTransition, strikerWorld, nonStrikerWorld, strikerAction as BatterAction, nonStrikerAction as BatterAction);
+  const { sPos, sYaw, sVisible, nPos, nYaw, incoming } = motion;
+  const sAct = (batterTransition ? motion.sAct : strikerAction) as CricketArenaAction;
+  const nAct = (batterTransition ? motion.nAct : nonStrikerAction) as CricketArenaAction;
+
+  // ---- Ball presentation: spin by bowling style, squash on the pitch, and visible bat contact ----
+  const bladeRef = useRef<THREE.Vector3 | null>(null);
+  const noContact =
+    !delivery ||
+    (delivery.wicket && (delivery.wicketType === 'Bowled' || delivery.wicketType === 'LBW')) ||
+    (delivery.legalBall === false && (delivery.batterRuns ?? 0) === 0);
+  const c01 = (x: number) => Math.max(0, Math.min(1, x));
+  let ballAttract = 0;
+  if (!noContact) {
+    if (stage === 'PITCH_BOUNCE') ballAttract = c01((localProgress - 0.7) / 0.3);
+    else if (stage === 'BAT_CONTACT') ballAttract = 1;
+    else if (stage === 'BALL_TRAVEL') ballAttract = c01(1 - localProgress / 0.14);
+  }
+  const ballSquash = stage === 'PITCH_BOUNCE' ? c01(1 - localProgress / 0.12) : 0;
+  const afterHit = stage === 'BALL_TRAVEL' || stage === 'OUTCOME' || stage === 'BAT_CONTACT';
+  const ballSpinRate = afterHit ? 22 : bowling.kind === 'SPIN' ? 55 : bowling.kind === 'MEDIUM' ? 36 : 26;
+  const ballSpinTilt = afterHit ? 0 : bowling.kind === 'SPIN' ? 0.6 : bowling.kind === 'MEDIUM' ? 0.25 : 0;
+
   return (
     <>
-      <Lighting />
+      <Lighting night={!isDay} />
 
       <CameraSystem
         mode={cameraMode}
@@ -298,25 +364,36 @@ function StadiumScene({
         strikerPos={strikerWorld}
         bowlerPos={bowlerWorld}
         isBallTravelling={stage === 'BALL_TRAVEL' || stage === 'OUTCOME'}
+        focus={batterTransition?.kind === 'WICKET' ? (incoming && batterTransition.progress > 0.55 ? incoming.pos : sVisible ? sPos : incoming?.pos ?? null) : null}
       />
 
       <Stadium
         scoreboardData={scoreboardData}
         stumpHit={Boolean(stage === 'OUTCOME' && delivery?.wicket)}
+        isDay={isDay}
+        crowdEnergy={stage === 'OUTCOME' && delivery && (delivery.wicket || delivery.totalRuns >= 4) ? 1 : 0.2}
       />
 
       {/* Striker Batsman */}
-      {striker && (
+      {striker && sVisible && (
         <CharacterInstance
           modelUrl={PADDED_MODEL}
-          position={strikerWorld}
-          yaw={0}
-          action={strikerAction}
+          position={sPos}
+          yaw={sYaw}
+          jerseyNumber={jerseyNumberFor(striker?.name)}
+          jerseyName={jerseyNameFor(striker?.name)}
+          heightScale={heightScale(heightCmFor(striker?.name, striker?.role))}
+          batBladeRef={bladeRef}
+          action={sAct}
           progress={localProgress}
           hasBat={true}
           isLeftHanded={isLeftHanded}
           ballPos={ball3DPos}
           showDebugSkeleton={showDebugSkeleton}
+          team={battingTeamName}
+          format={matchFormat}
+          kitVariant={kitVariants.batting}
+          kitRole="batter"
         />
       )}
 
@@ -324,12 +401,36 @@ function StadiumScene({
       {nonStriker && (
         <CharacterInstance
           modelUrl={PADDED_MODEL}
-          position={nonStrikerWorld}
-          yaw={Math.PI}
-          action={nonStrikerAction}
+          position={nPos}
+          yaw={nYaw}
+          jerseyNumber={jerseyNumberFor(nonStriker?.name)}
+          jerseyName={jerseyNameFor(nonStriker?.name)}
+          heightScale={heightScale(heightCmFor(nonStriker?.name, nonStriker?.role))}
+          action={nAct}
           progress={localProgress}
           hasBat={true}
           showDebugSkeleton={showDebugSkeleton}
+          team={battingTeamName}
+          format={matchFormat}
+          kitVariant={kitVariants.batting}
+          kitRole="batter"
+        />
+      )}
+
+      {/* Incoming batter walking out after a wicket */}
+      {incoming && (
+        <CharacterInstance
+          modelUrl={PADDED_MODEL}
+          position={incoming.pos}
+          yaw={incoming.yaw}
+          action={incoming.action as CricketArenaAction}
+          progress={0}
+          hasBat={true}
+          showDebugSkeleton={showDebugSkeleton}
+          team={battingTeamName}
+          format={matchFormat}
+          kitVariant={kitVariants.batting}
+          kitRole="batter"
         />
       )}
 
@@ -350,7 +451,7 @@ function StadiumScene({
         if (isBowler) {
           action =
             stage === 'BOWLER_RELEASE' || stage === 'PITCH_BOUNCE'
-              ? 'bowl_fast'
+              ? bowlAction
               : stage === 'OUTCOME' && delivery?.wicket
               ? 'celebrateSmall'
               : 'ready';
@@ -369,9 +470,9 @@ function StadiumScene({
 
         // Direction facing
         const facingAngle = isBowler
-          ? Math.PI
-          : isKeeper
           ? 0
+          : isKeeper
+          ? Math.PI
           : Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1]);
 
         return (
@@ -380,10 +481,18 @@ function StadiumScene({
             modelUrl={isKeeper ? PADDED_MODEL : LIGHT_MODEL}
             position={location}
             yaw={facingAngle}
+            jerseyNumber={jerseyNumberFor(fielder.name)}
+            jerseyName={jerseyNameFor(fielder.name)}
+            heightScale={heightScale(heightCmFor(fielder.name, (fielder as { role?: string }).role, isBowler ? bowling.kind : undefined))}
+            isLeftHanded={isBowler && bowling.leftArm}
             action={action}
             progress={isBowler ? Math.min(1, progress / 45) : localProgress}
             ballPos={ball3DPos}
             showDebugSkeleton={showDebugSkeleton}
+            team={bowlingTeamName}
+            format={matchFormat}
+            kitVariant={kitVariants.bowling}
+            kitRole={isKeeper ? 'keeper' : 'fielder'}
           />
         );
       })}
@@ -394,14 +503,21 @@ function StadiumScene({
         visible={ballVisible}
         scale={ballScale}
         isHitFlash={stage === 'BAT_CONTACT'}
+        spinVelocity={ballSpinRate}
+        spinTilt={ballSpinTilt}
+        squash={ballSquash}
+        attractTo={bladeRef}
+        attract={ballAttract}
       />
     </>
   );
 }
 
 export default function CricketAction3DView(props: CricketAction3DViewProps) {
-  const [cameraMode, setCameraMode] = useState<CameraViewMode>('EA_BATTER');
+  const [cameraMode, setCameraMode] = useState<CameraViewMode>(props.initialCameraMode ?? 'EA_BATTER');
   const [showDebugSkeleton, setShowDebugSkeleton] = useState(false);
+  const [showKitPreview, setShowKitPreview] = useState(false);
+  const [isDay, setIsDay] = useState(props.initialDay ?? false);
 
   return (
     <div className="absolute inset-0 overflow-hidden rounded-xl bg-[#080e1e] select-none">
@@ -417,6 +533,7 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
       >
         <Suspense fallback={null}>
           <StadiumScene
+            isDay={isDay}
             props={props}
             cameraMode={cameraMode}
             showDebugSkeleton={showDebugSkeleton}
@@ -432,17 +549,23 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
         </div>
       </div>
 
+      {showKitPreview && (
+        <KitPreviewPanel initialTeam={props.battingTeamName} onClose={() => setShowKitPreview(false)} />
+      )}
+
       {/* Top Right Camera & Debug Controls */}
       <div className="absolute right-3 top-3 flex items-center gap-1.5 z-20">
         {/* Camera Selector */}
         <div className="flex items-center bg-slate-950/85 backdrop-blur-md p-0.5 rounded-xl border border-white/10 shadow-lg text-[9px] font-bold">
           {(
             [
-              ['EA_BATTER', 'Behind Batter (EA 07)'],
+              ['EA_BATTER', 'Behind the batter'],
+              ['DRONE', 'Drone - orbit the whole ground'],
               ['BROADCAST', 'Broadcast TV'],
-              ['BOWLER_CAM', 'Bowler Cam'],
-              ['ACTION_CAM', 'Action Cam'],
-              ['ORBIT', '360° Orbit'],
+              ['BOWLER_CAM', 'Bowler run-up'],
+              ['SIDE_ON', 'Side-on'],
+              ['ACTION_CAM', 'Action cam'],
+              ['ORBIT', 'Free orbit'],
             ] as const
           ).map(([mode, label]) => (
             <button
@@ -456,10 +579,30 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              {mode === 'EA_BATTER' ? 'EA 07' : mode === 'BROADCAST' ? 'TV' : mode === 'BOWLER_CAM' ? 'Bowler' : mode === 'ACTION_CAM' ? 'Action' : 'Orbit'}
+              {CAMERA_LABELS[mode]}
             </button>
           ))}
         </div>
+
+        {/* Day / night match */}
+        <button
+          type="button"
+          onClick={() => setIsDay((v) => !v)}
+          title="Switch between a day match and a floodlit night match"
+          className={`px-2 py-1 rounded-xl text-[9px] font-bold border backdrop-blur-md ${isDay ? 'bg-amber-500/20 text-amber-200 border-amber-400/40' : 'bg-slate-950/85 text-slate-300 border-white/10 hover:text-white'}`}
+        >
+          {isDay ? 'Day' : 'Night'}
+        </button>
+
+        {/* Player / kit preview */}
+        <button
+          type="button"
+          onClick={() => setShowKitPreview((v) => !v)}
+          title="Player preview: rotate, zoom, change national kit, format and number"
+          className={`px-2 py-1 rounded-xl text-[9px] font-bold border backdrop-blur-md ${showKitPreview ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40' : 'bg-slate-950/85 text-slate-300 border-white/10 hover:text-white'}`}
+        >
+          Kits
+        </button>
 
         {/* Debug Skeleton & Collision Capsule Toggle */}
         <button

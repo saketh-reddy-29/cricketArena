@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { PlaybackGate } from '../presentation/PlaybackGate';
+import { transitionDurationMs, speedToMultiplier } from '../presentation/batterMotion';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, 
@@ -110,6 +112,10 @@ export interface VisualizerProps {
   eligibleBowlers?: Player[];
   onSelectBowlerManual?: (bowlerId: string) => void;
   batterState?: BatterInningsState | null;
+  /** Live innings figures for the stadium scoreboard (supplied by the match screen from the real scorecard) */
+  strikerStats?: { runs: number; balls: number } | null;
+  nonStrikerStats?: { runs: number; balls: number } | null;
+  bowlerStats?: { wickets: number; runs: number; balls: number } | null;
   // Fallback compatibility
   lastBall?: any;
   ballCount?: number;
@@ -228,6 +234,9 @@ export default function CricketActionVisualizer({
   eligibleBowlers = [],
   onSelectBowlerManual,
   batterState,
+  strikerStats,
+  nonStrikerStats,
+  bowlerStats,
   lastBall,
   ballCount = 0,
   className,
@@ -458,6 +467,57 @@ export default function CricketActionVisualizer({
   const fieldMoveAnimFrameRef = useRef<number | null>(null);
   const onPlaybackCompleteRef = useRef(onPlaybackComplete);
   onPlaybackCompleteRef.current = onPlaybackComplete;
+
+  // ---- Batter movement phase (running between the wickets / walk-off + walk-in) ----
+  // The next delivery is only released once BOTH the ball retrieval and this movement have finished.
+  const [batterTransition, setBatterTransition] = useState<{ kind: 'WICKET' | 'RUNS'; progress: number; runs: number } | null>(null);
+  const gateRef = useRef<PlaybackGate | null>(null);
+  if (!gateRef.current) gateRef.current = new PlaybackGate(() => {
+    (globalThis as { __arenaGateLog?: unknown[] }).__arenaGateLog?.push({ t: performance.now(), e: 'release' });
+    onPlaybackCompleteRef.current?.();
+  });
+  const transitionRafRef = useRef<number | null>(null);
+  const transitionTokenRef = useRef(0);
+  const transitionForRef = useRef('');
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
+  const cancelTransition = useCallback(() => {
+    if (transitionRafRef.current !== null) cancelAnimationFrame(transitionRafRef.current);
+    transitionRafRef.current = null;
+    transitionTokenRef.current++;
+    gateRef.current?.drop('transition');
+    setBatterTransition(null);
+  }, []);
+  const beginTransition = useCallback((delivery: DeliveryResult, kind: 'WICKET' | 'RUNS', isReplay: boolean) => {
+    if (isReplay || speedRef.current === 0) return;
+    const key = `${delivery.id}:${kind}`;
+    if (transitionForRef.current === key) return;
+    transitionForRef.current = key;
+    const runs = kind === 'RUNS' ? Math.min(3, Math.max(1, delivery.totalRuns)) : 0;
+    const duration = transitionDurationMs(kind, runs, speedToMultiplier(speedRef.current));
+    const token = ++transitionTokenRef.current;
+    gateRef.current?.hold('transition');
+    (globalThis as { __arenaGateLog?: unknown[] }).__arenaGateLog?.push({ t: performance.now(), e: `transition-start:${kind}:${runs}:${Math.round(duration)}` });
+    let t0 = performance.now();
+    let last = t0;
+    const frame = (now: number) => {
+      if (token !== transitionTokenRef.current) return;
+      if (isPausedRef.current) { t0 += now - last; last = now; transitionRafRef.current = requestAnimationFrame(frame); return; }
+      last = now;
+      const p = Math.min(1, (now - t0) / duration);
+      setBatterTransition({ kind, progress: p, runs });
+      if (p < 1) {
+        transitionRafRef.current = requestAnimationFrame(frame);
+      } else {
+        transitionRafRef.current = null;
+        setBatterTransition(null);
+        (globalThis as { __arenaGateLog?: unknown[] }).__arenaGateLog?.push({ t: performance.now(), e: 'transition-end' });
+        gateRef.current?.done('transition');
+      }
+    };
+    transitionRafRef.current = requestAnimationFrame(frame);
+  }, []);
+  useEffect(() => () => { if (transitionRafRef.current !== null) cancelAnimationFrame(transitionRafRef.current); }, []);
   const onContactReachedRef = useRef(onContactReached);
   onContactReachedRef.current = onContactReached;
   const onFieldChangingChangeRef = useRef(onFieldChangingChange);
@@ -689,6 +749,7 @@ export default function CricketActionVisualizer({
     const interception = evaluateInterception({
       ballPath: delivery.ballPath,
       fielders: fieldersRef.current.map((f) => ({ id: f.id, name: f.name, x: f.currentX, y: f.currentY })),
+      authoritative: { wicket: Boolean(delivery.wicket), wicketType: delivery.wicketType, runs: delivery.totalRuns },
     });
     lastInterceptionRef.current = interception;
 
@@ -701,6 +762,8 @@ export default function CricketActionVisualizer({
       onBallLifecycleChangeRef.current?.(interception.outcome === 'BOUNDARY' ? 'BALL_COLLECTED' : 'RETURNING_BALL', interception);
       if (interception.outcome === 'BOUNDARY') onBallLifecycleChangeRef.current?.('BOWLER_RETRIEVING', interception);
       onBallLifecycleChangeRef.current?.('BALL_READY', interception);
+      cancelTransition();
+      gateRef.current?.reset();
       onPlaybackCompleteRef.current?.();
       return;
     }
@@ -742,11 +805,12 @@ export default function CricketActionVisualizer({
         // Ball is back with the bowler: retrieval complete, next delivery may now be released.
         setActiveFielderAction(null);
         onBallLifecycleChangeRef.current?.('BALL_READY', interception);
-        onPlaybackCompleteRef.current?.();
+        (globalThis as { __arenaGateLog?: unknown[] }).__arenaGateLog?.push({ t: performance.now(), e: 'retrieval-end' });
+        gateRef.current?.done('retrieval');
       }
     };
     fieldMoveAnimFrameRef.current = requestAnimationFrame(frame);
-  }, [speed]);
+  }, [speed, cancelTransition]);
   const runRetrievalAnimationRef = useRef(runRetrievalAnimation);
   runRetrievalAnimationRef.current = runRetrievalAnimation;
 
@@ -767,6 +831,12 @@ export default function CricketActionVisualizer({
       return;
     }
 
+    if (!isReplay) {
+      // Arm the gate: the next ball waits for the ball return AND any batter movement to finish.
+      cancelTransition();
+      transitionForRef.current = '';
+      gateRef.current?.arm();
+    }
     const path = delivery.ballPath;
     const baseDuration = delivery.totalRuns === 6 ? 1500 : delivery.totalRuns === 4 ? 1300 : delivery.totalRuns > 0 ? 1150 : 950;
     const speedMult = speed === 1 ? 1 : speed === 1.5 ? 0.7 : 0.45;
@@ -842,6 +912,7 @@ export default function CricketActionVisualizer({
       else if (progress < 0.90) {
         setPlaybackStage('BALL_TRAVEL');
         const pTravel = (progress - 0.58) / 0.32;
+        if (delivery.totalRuns > 0 && delivery.totalRuns < 4 && !delivery.wicket) beginTransition(delivery, 'RUNS', isReplay);
 
         if (!contactTriggered) {
           contactTriggered = true;
@@ -912,6 +983,7 @@ export default function CricketActionVisualizer({
       else {
         setPlaybackStage('OUTCOME');
         curX = path.target.x;
+        if (delivery.wicket) beginTransition(delivery, 'WICKET', isReplay);
         curY = path.target.y;
 
         if (delivery.totalRuns >= 4) {
@@ -954,7 +1026,7 @@ export default function CricketActionVisualizer({
     };
 
     animFrameRef.current = requestAnimationFrame(step);
-  }, [speed]);
+  }, [speed, cancelTransition, beginTransition]);
 
   // Execute animation upon new deliveryResult arrival
   useEffect(() => {
@@ -977,6 +1049,7 @@ export default function CricketActionVisualizer({
   // Replay Last Delivery
   const handleReplay = () => {
     if (!activeDelivery) return;
+    cancelTransition();
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     setIsPaused(false);
     pausedProgressRef.current = 0;
@@ -986,6 +1059,8 @@ export default function CricketActionVisualizer({
   // Skip Current Playback
   const handleSkip = () => {
     if (!activeDelivery) return;
+    cancelTransition();
+    gateRef.current?.reset();
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     setIsPaused(false);
     setAnimProgress(100);
@@ -1397,6 +1472,18 @@ export default function CricketActionVisualizer({
                     target={target}
                     battingTeamName={battingTeamName}
                     bowlingTeamName={bowlingTeamName}
+                    matchFormat={initialFormat}
+                    batterTransition={batterTransition}
+                    strikerRuns={strikerStats?.runs ?? (batterState && striker && batterState.playerId === striker.id ? batterState.runsScored : undefined)}
+                    strikerBalls={strikerStats?.balls ?? (batterState && striker && batterState.playerId === striker.id ? batterState.ballsFaced : undefined)}
+                    nonStrikerRuns={nonStrikerStats?.runs}
+                    nonStrikerBalls={nonStrikerStats?.balls}
+                    bowlerWickets={bowlerStats?.wickets}
+                    bowlerRuns={bowlerStats?.runs}
+                    bowlerOvers={bowlerStats ? Math.floor(bowlerStats.balls / 6) : undefined}
+                    bowlerBalls={bowlerStats ? bowlerStats.balls % 6 : undefined}
+                    bowlerStyle={bowler?.bowlingStyle}
+                    bowlerRole={bowler?.role}
                     bowlerName={bowler?.name}
                     isLeftHanded={Boolean(striker?.battingStyle?.toLowerCase().includes('left'))}
                   />
