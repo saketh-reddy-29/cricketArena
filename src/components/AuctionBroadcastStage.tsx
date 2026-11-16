@@ -336,7 +336,7 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
             key={'auction-rep-' + team.id}
             modelUrl={AUCTION_CHARACTER_MODEL}
             position={[onLeft ? -14.05 : 14.05, z]}
-            yaw={onLeft ? 0 : Math.PI}
+            yaw={onLeft ? Math.PI / 2 : -Math.PI / 2}
             action={activeBidder ? 'auctionBid' : 'auctionSit'}
             progress={activeBidder ? 0.46 : 0.12}
             team={team.name}
@@ -351,7 +351,7 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
       <CharacterInstance
         modelUrl={AUCTION_CHARACTER_MODEL}
         position={[0, 2.05]}
-        yaw={Math.PI / 2}
+        yaw={0}
         action={phase === 'sold' ? 'victory' : 'auctioneerCall'}
         progress={phase === 'sold' ? 0.45 : 0.34}
         heightScale={0.92}
