@@ -72,33 +72,35 @@ export function CharacterInstance({
 
     // Bat Handle (Dark cane rubber wrap)
     const handle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.022, 0.024, 0.44, 12),
+      new THREE.CylinderGeometry(0.022, 0.024, 0.38, 12),
       new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: 0.85 })
     );
-    handle.position.y = -0.2;
+    handle.position.y = -0.17;
 
     // Bat Grip (Textured rubber grip in orange/red)
     const grip = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.028, 0.028, 0.22, 12),
+      new THREE.CylinderGeometry(0.028, 0.028, 0.17, 12),
       new THREE.MeshStandardMaterial({ color: '#ea580c', roughness: 0.6 })
     );
-    grip.position.y = -0.11;
+    grip.position.y = -0.08;
 
     // Bat Blade (English Willow wood with curved profile)
     const blade = new THREE.Mesh(
-      new THREE.BoxGeometry(0.125, 0.68, 0.062),
+      new THREE.BoxGeometry(0.125, 0.62, 0.062),
       new THREE.MeshStandardMaterial({ color: '#d8aa62', roughness: 0.75, metalness: 0.05 })
     );
-    blade.position.y = -0.68;
+    blade.position.y = -0.5;
 
     // Bat Spine Ridge
     const spine = new THREE.Mesh(
-      new THREE.BoxGeometry(0.05, 0.52, 0.038),
+      new THREE.BoxGeometry(0.05, 0.47, 0.038),
       new THREE.MeshStandardMaterial({ color: '#c2924a', roughness: 0.8 })
     );
-    spine.position.set(0, -0.68, -0.045);
+    spine.position.set(0, -0.5, -0.045);
 
     group.add(handle, grip, blade, spine);
+    // Keep the wooden blade / handle proportioned as one player-scale prop.
+    group.scale.setScalar(0.92);
     return group;
   }, []);
 

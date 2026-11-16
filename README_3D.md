@@ -97,18 +97,20 @@ so a few millimetres of graze can remain; keeper and bowling poses are slightly 
 * **Button audit:** a static scan of 260 buttons found none without a handler and no no-op handlers; a crawl of 13 pages clicked
   ~100 buttons with zero crashes (`tools/kit-preview/crawl.mjs`).
 
-## Broadcast playback and performance updates (feature branch)
+## Live 3D broadcast, field geometry and auction presentation
 
-- The temporary umpire character placeholders have been removed from the match scene.
-- The default 3D view is the TV broadcast camera. Batter, Drone, TV, Bowler, Side, Action and Orbit viewpoints remain selectable.
-- A Full / Exit control expands the match view to the browser's fullscreen viewport.
-- Rendering is tuned for lower-power GPUs: shadows and antialiasing are disabled in the match canvas and device pixel ratio is capped; procedural character rig solving and React playback-state publication are limited to about 30 updates per second.
-- Ball-flight playback duration scales with the ball's route distance. Ball retrieval also scales with distance to the bowler and holds the returned ball visibly at the bowler for a short settle before releasing the next delivery.
-- The playback gate still requires both ball retrieval and batter movement to finish before advancing to the next delivery.
-- On a wicket, the dismissed batter completes the walk-off first; the replacement batter then enters from the pavilion. The broadcast camera tightens onto the active batter during that transition.
-- Bowling plans still select the associated yorker, bouncer / short, slower-ball and swing poses, while spin style takes precedence.
+- Two official characters use the supplied rigged light-player GLB. Their neutral official kit is a white shirt, dark trousers, white footwear and a white wide-brim hat with a dark band attached to the head rig.
+- The bowler-end official handles out, wide, no-ball and six calls. The square-leg official handles four and backs up run-out / stumping calls; the square-leg position mirrors to the striker's leg side for left-handed batters.
+- During toss / lineup setup, the 3D match scene opens in a drone field view, showing the complete field formation and both officials. Broadcast, bowler, side, action and orbit viewpoints remain selectable.
+- The 30-yard rule circle uses the same circular 27.4 m radius painted into the 3D stadium. Close and inner-ring canonical stations sit inside the measured circle; outside status is calculated from coordinates, not cached role labels.
+- T20 and IPL apply two outside during the powerplay and five outside afterwards; ODI applies two / four / five across phases; Test has no limited-overs circle restriction. Reduced-overs windows continue to scale through the rules layer.
+- The 3D field HUD shows active format, fielding phase and measured outside-circle count / limit.
+- The batting prop has been shortened and scaled to improve its proportion relative to the batter in broadcast framing.
+- The match canvas disables shadows and antialiasing and caps device pixel ratio at 0.95 to reduce GPU pressure on integrated graphics. Procedural rig solving / React playback-state publication remain throttled to about 30 updates per second.
+- Ball-flight duration scales with route distance. Ball retrieval scales with distance to the bowler and holds the returned ball visibly at the bowler before releasing the next delivery. The playback gate waits for both ball retrieval and batter movement.
+- The auction includes a lightweight 3D broadcast room with franchise desks, raised team-coloured bid paddles, purse / leader labels and the current player's mapped photo or initials fallback. The existing auction controls, AI bids, budgets, sale handling and player data remain authoritative.
 
-The match poses remain procedural skeletal animation on the existing GLB rig, not newly authored motion-capture clips. Performance settings are intended to reduce UI churn and GPU load; real-world frame rate still depends on the device GPU and should be reviewed on the target hardware.
+The rigged player and umpire motions remain procedural skeletal poses on the supplied GLB rig, not newly authored motion-capture clips. Actual frame rate still depends on the target device and should be reviewed in-browser.
 
 ## Known limits (please read)
 * Shirt numbers and heights are generated from the player name (the match data carries neither).

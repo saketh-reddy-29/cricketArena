@@ -49,15 +49,17 @@ function buildField(outside: FielderPosition[], total = 11): FielderPosition[] {
 }
 
 describe('FieldingRestrictionEngine — circle geometry', () => {
-  it('matches the visualizer inner-circle ellipse (rx=160, ry=190)', () => {
-    expect(INNER_CIRCLE.rx).toBe(160);
-    expect(INNER_CIRCLE.ry).toBe(190);
-    expect(isOutsideCircle(300, 300)).toBe(false); // centre
-    expect(isOutsideCircle(200, 300)).toBe(false); // 100 units left, inside
-    expect(isOutsideCircle(300, 200)).toBe(false); // 100 units up, inside (rx/ry differ)
+  it('matches the circular 27.4 m ring painted in the 3D stadium', () => {
+    expect(INNER_CIRCLE.rx).toBeCloseTo(166.63, 1);
+    expect(INNER_CIRCLE.ry).toBeCloseTo(166.63, 1);
+    expect(isOutsideCircle(300, 300)).toBe(false);
+    expect(isOutsideCircle(200, 300)).toBe(false);
+    expect(isOutsideCircle(300, 200)).toBe(false);
+    expect(isOutsideCircle(466, 300)).toBe(false);
+    expect(isOutsideCircle(468, 300)).toBe(true);
   });
 
-  it('classifies points outside the 30-yard ellipse correctly', () => {
+  it('classifies points outside the 30-yard circle correctly', () => {
     expect(isOutsideCircle(90, 300)).toBe(true);
     expect(isOutsideCircle(300, 510)).toBe(true);
     expect(isOutsideCircle(300, 260)).toBe(false); // keeper ring
@@ -102,15 +104,25 @@ describe('FieldingRestrictionEngine — phase resolution', () => {
     expect(getFieldingPhase('TEST', 80).restricted).toBe(false);
   });
 
-  it('IPL inherits the T20 restriction table', () => {
+  it('IPL inherits T20 circle-restriction phases', () => {
     const t20 = getFieldingRestrictions('T20');
     const ipl = getFieldingRestrictions('IPL');
     expect(ipl).toEqual(t20);
+    expect(getFieldingPhase('IPL', 1).maxOutsideCircle).toBe(2);
+    expect(getFieldingPhase('IPL', 7).maxOutsideCircle).toBe(5);
     expect(iplRules.format).toBe('IPL');
   });
 });
 
 describe('FieldingRestrictionEngine — validation', () => {
+  it('uses coordinates instead of stale outside-circle flags', () => {
+    const staleInsideFlag = { ...OUTSIDE_A, isOutsideCircle: false };
+    const field = buildField([staleInsideFlag, OUTSIDE_B], 11);
+    const result = validateField({ format: 'T20', over: 1, fielders: field });
+    expect(result.valid).toBe(true);
+    expect(result.outsideCircleCount).toBe(2);
+  });
+
   it('T20 powerplay with exactly 2 outside is VALID', () => {
     const field = buildField([OUTSIDE_A, OUTSIDE_B], 11);
     const res = validateField({ format: 'T20', over: 1, fielders: field });

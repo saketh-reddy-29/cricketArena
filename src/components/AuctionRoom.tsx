@@ -13,6 +13,7 @@ import JerseyPlayerImage from './JerseyPlayerImage';
 import { getPlayerImage } from '../lib/playerImages';
 import { Player } from '../types/common';
 import { resolveTeamLogoUrl } from '../lib/teamLogos';
+import AuctionBroadcastStage from './AuctionBroadcastStage';
 
 const createFranchiseAIState = (): FranchiseAIState => ({
   fatigueLevel: 10,
@@ -307,6 +308,16 @@ export default function AuctionRoom() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left / Central Stage: Current Player & Active Podium (8 cols) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
+          <AuctionBroadcastStage
+            franchises={franchises}
+            leadingTeamId={auctionLeadingTeamId}
+            selectedTeamId={selectedFranchiseId}
+            player={currentPlayer}
+            playerImage={getPlayerImage(currentPlayer)}
+            currentBid={auctionCurrentBid}
+            phase={auctionPhase}
+            timer={auctionTimer}
+          />
           {/* Central Podium Card */}
           <div className="glass-card rounded-3xl p-6 relative overflow-hidden border border-white/10">
             {/* Ambient lighting effects */}

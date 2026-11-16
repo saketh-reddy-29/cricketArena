@@ -237,7 +237,8 @@ function MiniGround({ positionKeys, size = 120, selected = false, aiSelected = f
   const h = Math.round(size * 0.95);
   const cx = size / 2, cy = h / 2;
   const bRx = cx * 0.90, bRy = cy * 0.90;
-  const iRx = bRx * 0.60, iRy = bRy * 0.60;
+  const thirtyYardScale = 166.63 / 268;
+  const iRx = bRx * thirtyYardScale, iRy = bRy * thirtyYardScale;
   const toX = (x: number) => (x / 600) * size;
   const toY = (y: number) => (y / 600) * h;
   const dotR = Math.max(2.6, size * 0.023);

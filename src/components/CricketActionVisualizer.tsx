@@ -70,6 +70,7 @@ import { BallLifecycleState } from '../engine/fielding/BallLifecycleController';
 import { CaptainDecision } from '../engine/ai/AICaptainEngine';
 import { DetailedBowlingPlan } from '../engine/ai/BowlingPlanEngine';
 import { BattingIntent, BatterInningsState } from '../engine/ai/BatterDecisionEngine';
+import { getFieldingPhase, isOutsideCircle } from '../engine/fielding/FieldingRestrictionEngine';
 import { BatterScoringMemory, CANONICAL_ZONES, CANONICAL_ZONE_LIST, CanonicalZoneId } from '../engine/analytics/BatterScoringMemory';
 
 export type AnimationSpeed = 1 | 1.5 | 2 | 0; // 0 = Skip/Instant
@@ -1146,17 +1147,33 @@ export default function CricketActionVisualizer({
     const finalX = distFromCenter > maxR ? 300 + ((svgX - 300) / distFromCenter) * maxR : svgX;
     const finalY = distFromCenter > maxR ? 300 + ((svgY - 300) / distFromCenter) * maxR : svgY;
 
+    const outside = isOutsideCircle(finalX, finalY);
     setFielders(prev => prev.map(f => f.id === draggedFielderId ? {
       ...f,
       currentX: Math.round(finalX),
       currentY: Math.round(finalY),
       targetX: Math.round(finalX),
       targetY: Math.round(finalY),
+      isOutsideCircle: outside,
+      category: f.isCatching ? 'CATCHING' : outside ? 'BOUNDARY' : 'RING',
     } : f));
   };
 
   const bowlingPlan = fieldConfig.bowlingPlan;
   const isLeftHander = (striker as any)?.battingHand === 'Left' || false;
+  const liveFieldRule = getFieldingPhase(
+    selectedFormat,
+    (score?.overs || 0) + 1,
+    undefined,
+    totalOvers,
+    season,
+  );
+  const liveOutsideCircleCount = fielders.filter(
+    (fielder) =>
+      !fielder.isBowler &&
+      !fielder.isWicketkeeper &&
+      isOutsideCircle(fielder.currentX, fielder.currentY),
+  ).length;
 
   return (
     <div className={cn(
@@ -1512,6 +1529,11 @@ export default function CricketActionVisualizer({
                     battingTeamName={battingTeamName}
                     bowlingTeamName={bowlingTeamName}
                     matchFormat={initialFormat}
+                    fieldFormat={selectedFormat}
+                    fieldPhase={fieldConfig.phase}
+                    fieldRestricted={liveFieldRule.restricted}
+                    actualOutsideCircle={liveOutsideCircleCount}
+                    maxOutsideCircle={liveFieldRule.maxOutsideCircle}
                     batterTransition={batterTransition}
                     strikerRuns={strikerStats?.runs ?? (batterState && striker && batterState.playerId === striker.id ? batterState.runsScored : undefined)}
                     strikerBalls={strikerStats?.balls ?? (batterState && striker && batterState.playerId === striker.id ? batterState.ballsFaced : undefined)}

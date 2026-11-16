@@ -2,12 +2,13 @@ import { getRules } from '../rules/RulesEngine';
 import { Format, FieldingRestriction } from '../rules/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CANONICAL FIELD GEOMETRY (must match CricketActionVisualizer's 600x600 space)
-// Center = (300, 300). Inner 30-yard circle is an ellipse rx=160, ry=190.
+// CANONICAL FIELD GEOMETRY (must match the 3D stadium's 600x600 world map)
+// Center = (300, 300). The 27.4 m 30-yard ring maps to a 166.63-unit radius
+// under src/3d/worldScale.ts (12.44 px/m near the pitch, then radial outfield stretch).
 // Boundary rope radius = 268.
 // ─────────────────────────────────────────────────────────────────────────────
 export const FIELD_CENTER = { x: 300, y: 300 };
-export const INNER_CIRCLE = { cx: 300, cy: 300, rx: 160, ry: 190 } as const;
+export const INNER_CIRCLE = { cx: 300, cy: 300, rx: 166.63, ry: 166.63 } as const;
 export const BOUNDARY_RADIUS = 268;
 export const MAX_FIELDING_SIDE = 11;
 export const MAX_OUTFIELDERS = 9; // excluding bowler + wicketkeeper
@@ -31,7 +32,7 @@ export interface FielderPosition {
   role?: string; // 'Bowler' | 'Wicketkeeper' | 'Batsman' | 'All-rounder'
   x: number;
   y: number;
-  /** Optional pre-computed flag; when omitted the engine derives it from geometry. */
+  /** Legacy cached flag for display compatibility; rule checks always use x/y geometry. */
   isOutsideCircle?: boolean;
 }
 
@@ -124,8 +125,8 @@ export function overFromBalls(balls: number): number {
 }
 
 /**
- * Authoritative circle test. Uses the same ellipse geometry as the 2D field so
- * the UI and engine always agree. Points exactly on the ellipse count as inside.
+ * Authoritative 30-yard circle test. Points exactly on the circle count as inside.
+ * Coordinates use the same radial field-map scale as the 3D stadium's 27.4 m marking.
  */
 export function isOutsideCircle(x: number, y: number): boolean {
   const nx = (x - INNER_CIRCLE.cx) / INNER_CIRCLE.rx;
@@ -269,7 +270,7 @@ export function getFieldingPhase(format: Format, over: number, overrides?: Field
 export function countOutsideCircle(fielders: FielderPosition[]): number {
   return fielders.filter((f) => {
     if (isBowlerOrKeeper(f)) return false;
-    const outside = f.isOutsideCircle !== undefined ? f.isOutsideCircle : isOutsideCircle(f.x, f.y);
+    const outside = isOutsideCircle(f.x, f.y);
     return outside;
   }).length;
 }
@@ -349,7 +350,8 @@ export function validateField(input: FieldValidationInput): FieldValidationResul
 
     if (isBowlerOrKeeper(f)) continue;
 
-    const isOutside = f.isOutsideCircle !== undefined ? f.isOutsideCircle : isOutsideCircle(f.x, f.y);
+    // Coordinates are authoritative; ignore cached flags after drag / preset changes.
+    const isOutside = isOutsideCircle(f.x, f.y);
     if (isOutside) {
       outside += 1;
       outsideFielderIds.push(f.id);

@@ -88,6 +88,11 @@ export interface CricketAction3DViewProps {
   bowlerOvers?: number;
   bowlerBalls?: number;
   isLeftHanded?: boolean;
+  fieldFormat?: string;
+  fieldPhase?: string;
+  fieldRestricted?: boolean;
+  actualOutsideCircle?: number;
+  maxOutsideCircle?: number;
 }
 
 function getShotAction(shotType: string): CricketArenaAction {
@@ -201,6 +206,8 @@ function StadiumScene({
   const strikerWorld = toWorld(strikerPos);
   const nonStrikerWorld = toWorld(nonStrikerPos);
   const bowlerWorld = toWorld(bowlerPos);
+  const squareLegUmpireWorld = toWorld(isLeftHanded ? { x: 235, y: 205 } : { x: 365, y: 205 });
+  const squareLegUmpireYaw = Math.atan2(-squareLegUmpireWorld[0], -squareLegUmpireWorld[1]);
   const ballWorld = toWorld(ballPos);
 
   // Track audio triggers per stage to avoid repeating
@@ -512,6 +519,48 @@ function StadiumScene({
         );
       })}
 
+      {/* Bowler-end official: neutral white umpire kit + head-rig wide-brim hat. */}
+      <CharacterInstance
+        modelUrl={LIGHT_MODEL}
+        position={[0, -11.35]}
+        yaw={0}
+        action={
+          stage === 'OUTCOME' && delivery?.wicket && delivery.wicketType !== 'Run Out' && delivery.wicketType !== 'Stumped'
+            ? 'umpireOut'
+            : stage === 'OUTCOME' && delivery?.extraType === 'Wide'
+            ? 'umpireWide'
+            : stage === 'OUTCOME' && delivery?.extraType === 'No Ball'
+            ? 'umpireNoBall'
+            : stage === 'OUTCOME' && delivery?.totalRuns === 6
+            ? 'umpireSix'
+            : 'idle'
+        }
+        progress={localProgress}
+        team={bowlingTeamName}
+        format={matchFormat}
+        kitVariant={kitVariants.bowling}
+        kitRole="umpire"
+      />
+
+      {/* Square-leg official: mirrors to the striker's leg side for left-handed batters. */}
+      <CharacterInstance
+        modelUrl={LIGHT_MODEL}
+        position={squareLegUmpireWorld}
+        yaw={squareLegUmpireYaw}
+        action={
+          stage === 'OUTCOME' && delivery?.wicket && (delivery.wicketType === 'Run Out' || delivery.wicketType === 'Stumped')
+            ? 'umpireOut'
+            : stage === 'OUTCOME' && delivery?.totalRuns === 4
+            ? 'umpireFour'
+            : 'idle'
+        }
+        progress={localProgress}
+        team={bowlingTeamName}
+        format={matchFormat}
+        kitVariant={kitVariants.bowling}
+        kitRole="umpire"
+      />
+
       {/* Physical 3D Cricket Ball */}
       <BallVisual
         position={ball3DPos}
@@ -529,7 +578,9 @@ function StadiumScene({
 }
 
 export default function CricketAction3DView(props: CricketAction3DViewProps) {
-  const [cameraMode, setCameraMode] = useState<CameraViewMode>(props.initialCameraMode ?? 'BROADCAST');
+  const [cameraMode, setCameraMode] = useState<CameraViewMode>(
+    props.initialCameraMode ?? (!props.striker && props.stage === 'IDLE' ? 'DRONE' : 'BROADCAST')
+  );
   const sceneRootRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -548,6 +599,13 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
       void root.requestFullscreen().catch(() => setIsFullscreen(false));
     }
   };
+  // Show the complete field during toss / lineup setup, then return to TV coverage
+  // once an opening batter is assigned. Manual camera selection remains available.
+  useEffect(() => {
+    if (!props.striker && props.stage === 'IDLE') setCameraMode('DRONE');
+    else if (props.striker && props.stage === 'IDLE') setCameraMode('BROADCAST');
+  }, [props.striker?.id, props.stage]);
+
   const [showDebugSkeleton, setShowDebugSkeleton] = useState(false);
   const [showKitPreview, setShowKitPreview] = useState(false);
   const [isDay, setIsDay] = useState(props.initialDay ?? false);
@@ -559,7 +617,7 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
     >
       <Canvas
         shadows={false}
-        dpr={[0.7, 1.1]}
+        dpr={[0.65, 0.95]}
         gl={{
           antialias: false,
           powerPreference: 'high-performance',
@@ -578,11 +636,21 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
       </Canvas>
 
       {/* Top Left Status Badge */}
-      <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
-        <div className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-slate-950/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-cyan-200 backdrop-blur-md shadow-lg">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+      <div className="pointer-events-none absolute left-3 top-3 flex max-w-[min(70%,520px)] flex-col gap-1">
+        <div className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-slate-950/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-cyan-200 backdrop-blur-md shadow-lg">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
           <span>AAA 3D Match Stadium</span>
         </div>
+        {props.fieldPhase && (
+          <div className="rounded-lg border border-white/10 bg-slate-950/80 px-2.5 py-1 text-[9px] font-bold uppercase leading-relaxed text-white/90 backdrop-blur-md shadow-lg">
+            <span>{(props.fieldFormat || props.matchFormat || 'T20').toUpperCase()} · {props.fieldPhase}</span>
+            <span className="ml-2 text-cyan-200">
+              {props.fieldRestricted === false
+                ? `NO CIRCLE LIMIT · ${props.actualOutsideCircle ?? 0} OUTSIDE`
+                : `OUTSIDE ${props.actualOutsideCircle ?? 0}/${props.maxOutsideCircle ?? 0}`}
+            </span>
+          </div>
+        )}
       </div>
 
       {showKitPreview && (

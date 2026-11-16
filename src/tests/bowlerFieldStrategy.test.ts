@@ -4,6 +4,7 @@ import {
   CANONICAL_POSITIONS 
 } from '../engine/strategy/BowlerFieldStrategyEngine';
 import { PitchType, WeatherCondition } from '../types/match';
+import { isOutsideCircle } from '../engine/fielding/FieldingRestrictionEngine';
 import { Player } from '../types/common';
 
 const mockBowlerFast: Player = {
@@ -43,6 +44,18 @@ const mockStrikerLeft: Player = {
 } as any;
 
 describe('BowlerFieldStrategyEngine - Format Engine Verification', () => {
+  it('keeps CLOSE / INNER stations inside the measured ring and OUTER stations outside', () => {
+    const innerStations = Object.values(CANONICAL_POSITIONS).filter(
+      (station) => station.ringDistance !== 'OUTER',
+    );
+    const outerStations = Object.values(CANONICAL_POSITIONS).filter(
+      (station) => station.ringDistance === 'OUTER',
+    );
+    expect(innerStations.length).toBeGreaterThan(20);
+    expect(innerStations.every((station) => !isOutsideCircle(station.x, station.y))).toBe(true);
+    expect(outerStations.every((station) => isOutsideCircle(station.x, station.y))).toBe(true);
+  });
+
   // ── 1. T20 Engine Tests ──
   describe('T20 Engine Phases', () => {
     it('generates compliant T20 Powerplay field (Overs 0-5) with max 2 outside circle', () => {
