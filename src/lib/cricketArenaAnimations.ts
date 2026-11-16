@@ -426,48 +426,58 @@ export function getCricketArenaPose(
   // 3. BOWLING MECHANICS (Run-up, Gather, Windmill Arm Rotation, Synchronized Release)
   } else if (action.startsWith('bowl_') || action === 'fastBowl' || action === 'spinBowl') {
     const isSpin = action.includes('spin');
-    // Multi-stage delivery sequence:
-    // 0.00 - 0.44: Run-up sprint towards crease
-    // 0.44 - 0.58: Gather & bound into delivery stride
-    // 0.58 - 0.78: Windmill bowling arm rotation & release
-    // 0.78 - 1.00: Follow-through and deceleration
+    const isSlower = action === 'bowl_slower';
+    const isYorker = action === 'bowl_yorker';
+    const isBouncer = action === 'bowl_bouncer';
+    const isSwing = action === 'bowl_swing';
+    // The same delivery phases are retained for ball-path synchronization, but
+    // each bowling variation has distinct approach tempo, bound and release shape.
+    const runAmplitude = isSlower ? 0.38 : isSpin ? 0.43 : 0.55;
+    const runLift = isSlower ? 0.24 : isSpin ? 0.28 : 0.4;
+    const runFrequency = isSlower ? 2.65 : isSpin ? 2.9 : 3.5;
     if (t < 0.44) {
-      pose = runCycle(t / 0.44, 0.55, 0.4, 0.25, 3.5, false);
+      pose = runCycle(t / 0.44, runAmplitude, runLift, isSlower ? 0.12 : 0.25, runFrequency, false);
     } else if (t < 0.58) {
       const boundPhase = (t - 0.44) / 0.14;
       pose = {
-        lean: 0.15,
-        air: 0.32 * Math.sin(boundPhase * Math.PI),
-        lfx: 0.1,
-        rfx: -0.2,
+        lean: isYorker ? 0.24 : 0.15,
+        air: (isBouncer ? 0.42 : isSpin ? 0.2 : 0.32) * Math.sin(boundPhase * Math.PI),
+        lfx: isYorker ? 0.22 : 0.1,
+        rfx: isYorker ? -0.32 : -0.2,
         lhx: 0.5,
-        lhy: 1.7,
+        lhy: isBouncer ? 1.82 : 1.7,
         rhx: -0.4,
         rhy: 1.2,
+        tw: isSwing ? -0.16 : 0,
       };
     } else if (t < 0.78) {
       const armPhase = (t - 0.58) / 0.20 * Math.PI * 2;
+      const armRadius = isSpin ? 0.58 : isSlower ? 0.62 : 0.74;
+      const swingSide = isSwing ? Math.sin(armPhase) * 0.22 : 0;
       pose = {
-        lean: 0.35,
-        crouch: 0.15,
-        rfx: 0.6,
-        lfx: -0.4,
+        lean: isYorker ? 0.52 : isBouncer ? 0.25 : 0.35,
+        crouch: isYorker ? 0.22 : 0.15,
+        rfx: isYorker ? 0.72 : 0.6,
+        lfx: isYorker ? -0.52 : -0.4,
         lhx: 0.5 - Math.max(0, armPhase - 3.1) * 0.15,
         lhy: 1.7 - Math.max(0, armPhase - 3.1) * 0.3,
-        rhx: 0.1 - (isSpin ? 0.6 : 0.74) * Math.sin(armPhase),
-        rhy: 1.38 - (isSpin ? 0.6 : 0.74) * Math.cos(armPhase),
+        rhx: 0.1 - armRadius * Math.sin(armPhase) + swingSide,
+        rhy: 1.38 - armRadius * Math.cos(armPhase) + (isBouncer ? 0.16 : isYorker ? -0.18 : 0),
+        tw: isSwing ? -0.28 * Math.sin(armPhase) : isSpin ? 0.12 * Math.sin(armPhase) : 0,
+        latR: isSwing ? -0.18 : 0,
       };
     } else {
       const finishPhase = (t - 0.78) / 0.22;
       pose = {
-        lean: 0.5 - finishPhase * 0.3,
+        lean: (isYorker ? 0.62 : 0.5) - finishPhase * 0.3,
         crouch: 0.25 - finishPhase * 0.1,
         rfx: 0.5,
         lfx: -0.3,
         rhx: 0.35,
-        rhy: 0.5 + finishPhase * 0.3,
+        rhy: 0.5 + finishPhase * (isBouncer ? 0.42 : 0.3),
         lhx: 0.1,
         lhy: 0.9,
+        tw: isSwing ? -0.1 * (1 - finishPhase) : 0,
       };
     }
 
