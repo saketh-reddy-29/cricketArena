@@ -159,6 +159,9 @@ function CharacterInstanceInner({
     const fps = Math.max(8, Math.min(60, updateFps));
     const previousFrame = lastFrameRef.current;
     if (previousFrame.action === action && clock - previousFrame.time < 1 / fps) return;
+    const solveDelta = Number.isFinite(previousFrame.time)
+      ? Math.min(clock - previousFrame.time, 0.05)
+      : Math.min(delta, 0.05);
     lastFrameRef.current = { time: clock, action };
     let pose = getCricketArenaPose(action, progress, clock, isLeftHanded);
 
@@ -185,8 +188,7 @@ function CharacterInstanceInner({
     modelWrapper.rotation.set(0, Math.PI / 2 - (pose.yw || 0) * Math.PI / 2, -(pose.rot || 0));
 
     // Solve kinematics and anatomical collision constraints
-    const dt = Math.min(delta, 0.05);
-    const output = model.rig.solve(pose, solverState.current, dt);
+    const output = model.rig.solve(pose, solverState.current, solveDelta);
 
     // Apply solved bone quaternions
     const bones = model.description;
