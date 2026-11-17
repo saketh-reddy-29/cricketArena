@@ -1,9 +1,16 @@
-import React, { Component, useEffect, useMemo, useRef } from 'react';
+import React, { Component, useEffect, useId, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { buildCharacterRig, CricketRigModel } from './CharacterRig';
-import { CricketArenaAction, CricketArenaPose, getCricketArenaPose } from '../lib/cricketArenaAnimations';
+import {
+  CricketArenaAction,
+  CricketArenaPose,
+  Gait,
+  gaitCycleLength,
+  gaitForSpeed,
+  getCricketArenaPose,
+} from '../lib/cricketArenaAnimations';
 import { applyTeamKit, createKitCharacter } from './kitMaterial';
 import { KitFormat, KitRole, KitVariant } from './teamKits';
 
@@ -37,6 +44,38 @@ export interface CharacterInstanceProps {
   trackBall?: boolean;
   /** Only foreground characters should cast dynamic shadows. */
   castShadow?: boolean;
+  /**
+   * Glide to the requested position / turn smoothly to the requested yaw instead of snapping.
+   * Use for fielders, keepers and umpires. Leave off for characters whose position is already
+   * animated frame-by-frame by the match (bowler run-up, batters running between the wickets).
+   */
+  smoothMotion?: boolean;
+  /**
+   * Derive walk / jog / sprint from the character's real ground speed and drive the stride from
+   * distance travelled, so feet stay planted (no sliding) whatever the caller asked for.
+   */
+  autoLocomotion?: boolean;
+  /**
+   * With smoothMotion: cap travel speed (m/s) so repositioning looks like walking / jogging rather than
+   * a slide. Large jumps (> 25 m, e.g. a reset) still snap.
+   */
+  maxSpeed?: number;
+  /** 0..1 value that varies idle behaviour per player. Defaults to a stable per-instance value. */
+  idleSeed?: number;
+}
+
+const LOCOMOTION_ACTIONS = new Set<CricketArenaAction>(['walk', 'jog', 'sprint', 'run', 'runBat', 'sprintBat', 'walkBat', 'walkAway']);
+const IDLE_ACTIONS = new Set<CricketArenaAction>(['ready', 'fielderReady', 'fielderWait', 'stand', 'nonStrikerWait', 'nonStrikerBackUp']);
+
+const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+function hashSeed(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 10007) / 10007;
 }
 
 /** Error boundary per character instance to prevent one failing character from bringing down the stadium */
@@ -90,6 +129,7 @@ function blendPoses(a: CricketArenaPose, b: CricketArenaPose, factor: number): C
     latR: lerpVal(a.latR, b.latR),
     tw: lerpVal(a.tw, b.tw),
     toe: lerpVal(a.toe, b.toe),
+    hd: lerpVal(a.hd, b.hd),
   };
 }
 
@@ -114,7 +154,13 @@ function CharacterInstanceInner({
   updateFps = 30,
   trackBall = true,
   castShadow = false,
+  smoothMotion = false,
+  autoLocomotion = false,
+  maxSpeed,
+  idleSeed,
 }: CharacterInstanceProps) {
+  const reactId = useId();
+  const seed = idleSeed ?? hashSeed(reactId);
   const { scene } = useGLTF(modelUrl);
   const model: CricketRigModel = useMemo(() => buildCharacterRig(scene), [scene]);
 
@@ -122,6 +168,20 @@ function CharacterInstanceInner({
   const modelWrapperRef = useRef<THREE.Group>(null);
   const batRef = useRef<THREE.Group>(null);
   const solverState = useRef<Record<string, unknown>>({});
+  // Frame-rate independent motion state (smoothed transform, speed, gait phase, head tracking).
+  const motion = useRef({
+    init: false,
+    x: 0,
+    z: 0,
+    yaw: 0,
+    speed: 0,
+    phase: 0,
+    gait: null as Gait | null,
+    hd: 0,
+    headPitch: 0,
+    yw: 0,
+    sp: 0,
+  });
 
   // Animation cross-fading & state tracking
   const prevPoseRef = useRef<CricketArenaPose | null>(null);
@@ -224,27 +284,102 @@ function CharacterInstanceInner({
     if (!root || !modelWrapper) return;
 
     const clock = state.clock.elapsedTime;
+    // Real frame time (only capped against hitches): speed, gait phase and glide must track wall-clock motion
+    // even on a slow device. The pose solver below keeps its own, tighter cap.
+    const dt = Math.min(Math.max(delta, 1 / 240), 0.25);
+    const m = motion.current;
+
+    // ---- Per-frame motion: runs every frame regardless of the pose-solve rate ----
+    const tx = position[0];
+    const ty = position.length === 3 ? position[1] : 0;
+    const tz = position.length === 3 ? position[2] : position[1];
+    const prevX = m.x;
+    const prevZ = m.z;
+    let snapped = false;
+    const gap = Math.hypot(tx - m.x, tz - m.z);
+    if (!m.init || !smoothMotion || gap > (maxSpeed ? 25 : 8)) {
+      snapped = !m.init || smoothMotion; // a teleport (new innings, reset) must not read as a sprint
+      m.x = tx;
+      m.z = tz;
+    } else if (maxSpeed) {
+      // Speed-limited follow with ease-out: never faster than maxSpeed, settles gently on arrival.
+      const desired = Math.min(maxSpeed, gap * 6);
+      const stepLen = Math.min(gap, desired * dt);
+      if (gap > 1e-6) {
+        m.x += ((tx - m.x) / gap) * stepLen;
+        m.z += ((tz - m.z) / gap) * stepLen;
+      }
+    } else {
+      m.x = THREE.MathUtils.damp(m.x, tx, 14, dt);
+      m.z = THREE.MathUtils.damp(m.z, tz, 14, dt);
+    }
+    const step = snapped ? 0 : Math.hypot(m.x - prevX, m.z - prevZ);
+    m.speed = THREE.MathUtils.damp(m.speed, step / dt, 8, dt);
+
+    // Facing: turn smoothly; when travelling quickly, face the direction of travel so the feet never run sideways.
+    let targetYaw = yaw;
+    if (smoothMotion && autoLocomotion && m.speed > 1.6 && step > 1e-5) {
+      const travelYaw = Math.atan2(m.x - prevX, m.z - prevZ);
+      const w = THREE.MathUtils.clamp((m.speed - 1.6) / 1.6, 0, 1);
+      targetYaw = yaw + wrapAngle(travelYaw - yaw) * w;
+    }
+    if (!m.init || !smoothMotion) {
+      m.yaw = yaw;
+    } else {
+      const err = wrapAngle(targetYaw - m.yaw);
+      const turn = THREE.MathUtils.clamp(err * (1 - Math.exp(-9 * dt)), -7 * dt, 7 * dt);
+      m.yaw += turn;
+    }
+    const yawLead = smoothMotion ? wrapAngle(targetYaw - m.yaw) : 0; // how far the body still has to turn
+    m.init = true;
+
+    root.position.set(m.x, ty, m.z);
+    root.rotation.y = m.yaw - Math.PI / 2 + m.yw * Math.PI / 2 + m.sp;
+
+    // ---- Choose the effective action (context-aware locomotion) ----
+    let effAction: CricketArenaAction = action;
+    let phase: number | undefined;
+    if (autoLocomotion) {
+      const moving = m.speed > (m.gait ? 0.35 : 0.6);
+      const wantsLoco = LOCOMOTION_ACTIONS.has(action);
+      if ((wantsLoco || IDLE_ACTIONS.has(action)) && moving) {
+        const gait = gaitForSpeed(m.speed, m.gait);
+        m.gait = gait;
+        m.phase += step / gaitCycleLength(gait);
+        phase = m.phase;
+        if (action === 'walkAway' && gait === 'walk') effAction = 'walkAway';
+        else if (hasBat) effAction = gait === 'walk' ? 'walkBat' : gait === 'jog' ? 'runBat' : 'sprintBat';
+        else effAction = gait;
+      } else {
+        m.gait = null;
+        if (wantsLoco && m.speed <= 0.35) {
+          const chase = action === 'sprint' || action === 'run' || action === 'jog' || action === 'runBat' || action === 'sprintBat';
+          effAction = hasBat ? 'nonStrikerWait' : chase ? 'fielderReady' : 'stand';
+        }
+      }
+    }
+
     const fps = Math.max(8, Math.min(60, updateFps));
     const previousFrame = lastFrameRef.current;
-    if (previousFrame.action === action && clock - previousFrame.time < 1 / fps) return;
+    if (previousFrame.action === effAction && clock - previousFrame.time < 1 / fps) return;
     const solveDelta = Number.isFinite(previousFrame.time)
       ? Math.min(clock - previousFrame.time, 0.05)
       : Math.min(delta, 0.05);
-    lastFrameRef.current = { time: clock, action };
+    lastFrameRef.current = { time: clock, action: effAction };
 
     // Check if action transitioned: trigger smooth cross-fade blend
-    if (prevActionRef.current !== action) {
+    if (prevActionRef.current !== effAction) {
       if (prevPoseRef.current) {
         blendStateRef.current = {
           fromPose: { ...prevPoseRef.current },
           startTime: clock,
-          duration: 0.16, // 160ms smooth transition
+          duration: 0.18,
         };
       }
-      prevActionRef.current = action;
+      prevActionRef.current = effAction;
     }
 
-    let rawPose = getCricketArenaPose(action, progress, clock, isLeftHanded);
+    const rawPose = getCricketArenaPose(effAction, progress, clock, isLeftHanded, seed, phase);
 
     // Apply smooth blending across animation switches
     let pose: CricketArenaPose;
@@ -263,27 +398,29 @@ function CharacterInstanceInner({
     }
     prevPoseRef.current = pose;
 
-    // Dynamic Head Tracking: look towards ball if within 14 meters
-    if (trackBall && ballPos && root) {
-      const charWorldPos = root.position;
-      const dx = ballPos[0] - charWorldPos.x;
-      const dz = ballPos[2] - charWorldPos.z;
+    // Head tracking: the head turns (yaw) and dips (pitch) to follow the ball, eased so it never snaps.
+    // Also leads into turns: the eyes get to the target before the body does.
+    let wantHd = THREE.MathUtils.clamp(yawLead * 0.7, -0.7, 0.7);
+    let wantPitch = 0;
+    if (trackBall && ballPos) {
+      const dx = ballPos[0] - m.x;
+      const dz = ballPos[2] - m.z;
       const dist = Math.hypot(dx, dz);
-      if (dist < 14) {
-        const targetPitch = Math.atan2(dx, dz) - yaw;
-        pose = {
-          ...pose,
-          head: (pose.head || 0) + THREE.MathUtils.clamp(targetPitch * 0.4, -0.6, 0.6),
-        };
+      const w = 1 - THREE.MathUtils.smoothstep(dist, 10, 18);
+      if (w > 0) {
+        const look = THREE.MathUtils.clamp(wrapAngle(Math.atan2(dx, dz) - m.yaw), -0.9, 0.9);
+        wantHd += look * w;
+        wantPitch = THREE.MathUtils.clamp(Math.atan2(1.55 - ballPos[1], Math.max(dist, 1.5)) * 0.6, -0.35, 0.5) * w;
       }
     }
+    m.hd = THREE.MathUtils.damp(m.hd, wantHd, 10, solveDelta);
+    m.headPitch = THREE.MathUtils.damp(m.headPitch, wantPitch, 8, solveDelta);
+    pose = { ...pose, hd: (pose.hd || 0) + m.hd, head: (pose.head || 0) + m.headPitch };
+    m.yw = pose.yw || 0;
+    m.sp = pose.sp || 0;
 
-    // Update root position and rotation
-    const posX = position[0];
-    const posY = position.length === 3 ? position[1] : 0;
-    const posZ = position.length === 3 ? position[2] : position[1];
-    root.position.set(posX, posY, posZ);
-    root.rotation.y = yaw - Math.PI / 2 + (pose.yw || 0) * Math.PI / 2 + (pose.sp || 0);
+    // Orientation inside the rig (side-on batting stance, celebration spin). Position and yaw were set above.
+    root.rotation.y = m.yaw - Math.PI / 2 + m.yw * Math.PI / 2 + m.sp;
 
     modelWrapper.position.y = pose.air || 0;
     modelWrapper.rotation.set(0, Math.PI / 2 - (pose.yw || 0) * Math.PI / 2, -(pose.rot || 0));
@@ -313,7 +450,7 @@ function CharacterInstanceInner({
     }
 
     // Ground clamp: keep feet above grass level efficiently without full-graph traverse
-    if (feet.nodes.length && pose.crouch > 0.3 && posY === 0) {
+    if (feet.nodes.length && pose.crouch > 0.3 && ty === 0) {
       let minY = Infinity;
       for (const n of feet.nodes) {
         n.getWorldPosition(feet.v);
@@ -421,7 +558,9 @@ function CharacterInstanceInner({
   );
 }
 
-const STATIC_POSE_ACTIONS = new Set<CricketArenaAction>(['idle', 'ready', 'keeperReady', 'batIdle']);
+const STATIC_POSE_ACTIONS = new Set<CricketArenaAction>([
+  'idle', 'ready', 'keeperReady', 'batIdle', 'stand', 'fielderWait', 'fielderReady', 'nonStrikerWait', 'nonStrikerBackUp',
+]);
 
 function sameVector(a?: readonly number[], b?: readonly number[]) {
   if (a === b) return true;
@@ -452,7 +591,11 @@ function areCharacterPropsEqual(prev: CharacterInstanceProps, next: CharacterIns
     prev.jerseyName === next.jerseyName &&
     prev.updateFps === next.updateFps &&
     prev.trackBall === next.trackBall &&
-    prev.castShadow === next.castShadow
+    prev.castShadow === next.castShadow &&
+    prev.smoothMotion === next.smoothMotion &&
+    prev.autoLocomotion === next.autoLocomotion &&
+    prev.maxSpeed === next.maxSpeed &&
+    prev.idleSeed === next.idleSeed
   );
 }
 

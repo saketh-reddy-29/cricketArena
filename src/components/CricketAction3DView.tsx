@@ -300,8 +300,12 @@ function StadiumScene({
     if (hasRuns && (stage === 'BALL_TRAVEL' || stage === 'OUTCOME')) {
       return 'runBat';
     }
-    return 'batIdle';
-  }, [hasRuns, stage]);
+    // Upright and watching the bowler; leans into the run as the ball is delivered.
+    if ((stage === 'BOWLER_RELEASE' && progress > 28) || stage === 'PITCH_BOUNCE' || stage === 'BAT_CONTACT') {
+      return 'nonStrikerBackUp';
+    }
+    return 'nonStrikerWait';
+  }, [hasRuns, stage, progress]);
 
   // Ball 3D flight trajectory calculation
   const ball3DPos: [number, number, number] = useMemo(() => {
@@ -467,6 +471,8 @@ function StadiumScene({
               updateFps={motionQuality === 'ULTRA' ? 60 : motionQuality === 'BALANCED' ? 45 : 30}
               trackBall
               castShadow
+              smoothMotion
+              autoLocomotion
               team={battingTeamName}
               format={matchFormat}
               kitVariant={kitVariants.batting}
@@ -492,8 +498,10 @@ function StadiumScene({
               hasBat={true}
               showDebugSkeleton={showDebugSkeleton}
               updateFps={motionQuality === 'ULTRA' ? 45 : motionQuality === 'BALANCED' ? 30 : 20}
-              trackBall={false}
+              trackBall
               castShadow={false}
+              smoothMotion
+              autoLocomotion
               team={battingTeamName}
               format={matchFormat}
               kitVariant={kitVariants.batting}
@@ -516,6 +524,8 @@ function StadiumScene({
               hasBat={true}
               showDebugSkeleton={showDebugSkeleton}
               updateFps={motionQuality === 'ULTRA' ? 45 : motionQuality === 'BALANCED' ? 30 : 20}
+              smoothMotion
+              autoLocomotion
               trackBall={false}
               castShadow={false}
               team={battingTeamName}
@@ -541,7 +551,7 @@ function StadiumScene({
                 ? 'umpireSix'
                 : stage === 'OUTCOME' && delivery?.totalRuns === 4
                 ? 'umpireFour'
-                : 'ready'
+                : 'stand'
             }
             progress={localProgress}
             heightScale={1.0}
@@ -561,7 +571,7 @@ function StadiumScene({
             modelUrl={LIGHT_MODEL}
             position={[isLeftHanded ? -20 : 20, CREASE_Z - 0.5]}
             yaw={isLeftHanded ? Math.PI / 2 : -Math.PI / 2}
-            action="ready"
+            action="stand"
             progress={0}
             heightScale={0.98}
             updateFps={12}
@@ -578,10 +588,14 @@ function StadiumScene({
         const isBowler = fielder.isBowler || fielder.positionKey === 'BOWLER';
         const isKeeper = fielder.isWicketkeeper || fielder.positionKey === 'WICKETKEEPER';
         const active = activeFielderAction?.fielderId === fielder.id ? activeFielderAction : null;
+        const releasing = stage === 'BOWLER_RELEASE' || stage === 'PITCH_BOUNCE' || stage === 'BAT_CONTACT';
+        const ballStruck = stage === 'BAT_CONTACT' || stage === 'BALL_TRAVEL' || stage === 'OUTCOME';
+        // Fielders go from relaxed to ready as the bowler approaches the crease (anticipation).
+        const alert = stage === 'PITCH_BOUNCE' || stage === 'BAT_CONTACT' || stage === 'BALL_TRAVEL' || (stage === 'BOWLER_RELEASE' && progress > 26);
 
         // Realistic cricket placement: Wicketkeeper stands right behind striker's stumps
         // (up to stumps for spin, back for pace bowling)
-        const location: [number, number] = isBowler
+        let location: [number, number] = isBowler
           ? bowlerWorld
           : isKeeper && !active
           ? [
@@ -592,8 +606,34 @@ function StadiumScene({
           ? toWorld(active.currentPos)
           : toWorld({ x: fielder.currentX, y: fielder.currentY });
 
+        // Bowler walks back to his mark between deliveries instead of appearing at the run-up start.
+        const ballReturned = Math.hypot(ballWorld[0] - bowlerWorld[0], ballWorld[1] - bowlerWorld[1]) < 1.2;
+        if (isBowler && (stage === 'IDLE' || (stage === 'OUTCOME' && ballReturned))) {
+          location = [0.55, bowling.kind === 'SPIN' ? -16.0 : -25.5];
+        }
+
+        // Dynamic repositioning for fielders not directly involved in the play.
+        if (!isBowler && !isKeeper && !active) {
+          const toStriker = [strikerWorld[0] - location[0], strikerWorld[1] - location[1]];
+          const dS = Math.hypot(toStriker[0], toStriker[1]);
+          if (dS > 1 && dS < 32 && (stage === 'BOWLER_RELEASE' || stage === 'PITCH_BOUNCE')) {
+            // Inner ring walks in a step or two as the bowler delivers (the "walk-in").
+            const k = stage === 'BOWLER_RELEASE' ? THREE.MathUtils.clamp((progress - 22) / 23, 0, 1) : 1;
+            location = [location[0] + (toStriker[0] / dS) * 0.8 * k, location[1] + (toStriker[1] / dS) * 0.8 * k];
+          } else if (stage === 'BAT_CONTACT' || stage === 'BALL_TRAVEL') {
+            // React to the stroke: shuffle towards the ball's line, but never walk into it.
+            const toBall = [ballWorld[0] - location[0], ballWorld[1] - location[1]];
+            const dB = Math.hypot(toBall[0], toBall[1]);
+            if (dB > 7) {
+              const c = stage === 'BAT_CONTACT' ? 0.15 : THREE.MathUtils.clamp(localProgress * 1.5, 0, 1);
+              const step = 2.2 * c * c * (3 - 2 * c);
+              location = [location[0] + (toBall[0] / dB) * step, location[1] + (toBall[1] / dB) * step];
+            }
+          }
+        }
+
         // Select specific character action
-        let action: CricketArenaAction = 'ready';
+        let action: CricketArenaAction = alert ? 'fielderReady' : 'fielderWait';
         if (isBowler) {
           const dX = ballWorld[0] - bowlerWorld[0];
           const dZ = ballWorld[1] - bowlerWorld[1];
@@ -607,7 +647,9 @@ function StadiumScene({
               ? 'celebrateSmall'
               : isCatching
               ? 'catchChest'
-              : 'ready';
+              : stage === 'BALL_TRAVEL'
+              ? 'fielderReady'
+              : 'fielderWait';
         } else if (isKeeper) {
           action =
             active
@@ -619,9 +661,12 @@ function StadiumScene({
           action = actionForFielder(fielder, active.action);
         } else if (stage === 'OUTCOME' && delivery?.wicket) {
           action = 'handsUp';
+        } else if (stage === 'OUTCOME') {
+          action = 'fielderWait';
         }
 
-        // Direction facing: fielders face the striker unless actively tracking/chasing or throwing
+        // Direction facing: fielders face the striker until the ball is struck, then turn to follow it;
+        // chasing / throwing fielders face their target.
         const facingAngle = isBowler
           ? (stage === 'OUTCOME' && !delivery?.wicket
               ? Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1])
@@ -632,6 +677,8 @@ function StadiumScene({
           ? (stage === 'OUTCOME'
               ? Math.atan2(bowlerWorld[0] - location[0], bowlerWorld[1] - location[1])
               : Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1]))
+          : ballStruck && stage !== 'OUTCOME'
+          ? Math.atan2(ballWorld[0] - location[0], ballWorld[1] - location[1])
           : Math.atan2(strikerWorld[0] - location[0], strikerWorld[1] - location[1]);
 
         const fielderFps = isBowler || active
@@ -664,8 +711,13 @@ function StadiumScene({
                 ballPos={ball3DPos}
                 showDebugSkeleton={showDebugSkeleton}
                 updateFps={fielderFps}
-                trackBall={isBowler || isKeeper || Boolean(active)}
+                trackBall={isBowler || isKeeper || Boolean(active) || ballStruck}
                 castShadow={isBowler || Boolean(active)}
+                // The bowler's run-up and delivery are driven frame-by-frame by the match, so only smooth him
+                // while he is walking back / waiting. Everyone else glides at a human speed.
+                smoothMotion={!(isBowler && releasing)}
+                autoLocomotion
+                maxSpeed={isBowler ? 5 : active ? 9.5 : 3.2}
                 team={bowlingTeamName}
                 format={matchFormat}
                 kitVariant={kitVariants.bowling}

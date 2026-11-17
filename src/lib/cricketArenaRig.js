@@ -136,7 +136,7 @@
       const out = {}, hipsRest = W(R.hips), dbg = out.dbg = { armTorso: 1e9, armArm: 1e9, legLeg: 1e9, legBody: 1e9, bat: 1e9, limit: 0 };
       const L = p.lean || 0, tw = p.tw || 0, YW = (p.yw || 0) * Math.PI / 2, EU = [Math.sin(YW), 0, Math.cos(YW)]; /* YW: body turned side-on; EU: model-space direction of the pitch axis */
       const ang = { hips: 0.1 * L, spine: 0.4 * L, chest: 0.75 * L, upper: L, neck: 0.8 * L, head: 0.55 * L + (p.head || 0) };
-      const twd = { hips: 0, spine: 0.25 * tw, chest: 0.6 * tw, upper: tw, neck: tw + 0.35 * YW, head: tw + 0.9 * YW }; /* side-on: head turns to look down the pitch */
+      const hd = p.hd || 0, twd = { hips: 0, spine: 0.25 * tw, chest: 0.6 * tw, upper: tw, neck: tw + 0.35 * YW + 0.4 * hd, head: tw + 0.9 * YW + hd }; /* hd: head yaw (look left/right) */ /* side-on: head turns to look down the pitch */
       const delta = {}, pos = {};
       function torso(hz) {
         const hipsPos = [hipsRest[0], hipsRest[1] - (p.crouch || 0) * g2m, hipsRest[2] + ((p.hz || 0) * g2m) - hz];

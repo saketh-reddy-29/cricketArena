@@ -115,3 +115,28 @@ npx esbuild tools/kit-preview/match.tsx --bundle --format=esm --outfile=tools/ki
 SHOT_DIR=/tmp/shot PAGE=match VW=1500 VH=840 node tools/kit-preview/run.mjs out.png "?bat=India&bowl=Australia&fmt=T20&cam=DRONE&wait=14000"
 ```
 `dist/` is build output - do not commit it.
+
+## Character animation system
+Poses are solved procedurally for the rigged GLB players (`src/lib/cricketArenaAnimations.ts` -> `cricketArenaRig.js`).
+* **Ground-locked gait** - `GAITS` (walk / jog / sprint). Stance feet move backwards at constant speed, so a body
+  travelling `gaitCycleLength(gait)` m per cycle never slides its feet. `CharacterInstance` drives the phase from the
+  distance actually travelled and picks the gait from ground speed (`autoLocomotion`), so the animation always matches
+  the movement. Arms counter-swing the legs; pelvis bobs; chest counter-rotates.
+* **Smooth motion** - `smoothMotion` glides position / turns yaw; `maxSpeed` caps repositioning at a human speed
+  (fielders 3.2 m/s, chasing 9.5, bowler walking back 5). Bowler run-up and batters' runs are driven by the match and
+  are not smoothed.
+* **Stances** - `fielderWait` (relaxed, per-player hand habit via `idleSeed`), `fielderReady` (anticipation), `stand`
+  (umpires), `nonStrikerWait` / `nonStrikerBackUp`. The match view picks them per stage (`CricketAction3DView`).
+* **Head tracking** - `pose.hd` is head yaw (rig applies it to neck + head); the ball also drives a gentle pitch.
+* **Bowling** - run-up gait -> gather/jump -> delivery (chest coils then unwinds, arm over the top) -> jog-off;
+  left-arm bowlers are mirrored (`mirrorLimbs`). **Batting** - `tw` (shoulder rotation) and a front-foot trigger step.
+
+### Animation test bench
+`tools/kit-preview/anim.tsx` (deterministic 50 Hz stepping, works headless):
+```bash
+npx esbuild tools/kit-preview/anim.tsx --bundle --format=esm --outfile=tools/kit-preview/dist/anim.js --jsx=automatic --define:process.env.NODE_ENV='"production"'
+# filmstrip of one action
+SHOT_DIR=/tmp/shot PAGE=anim VW=1800 VH=560 node tools/kit-preview/run.mjs out.png "?mode=film&a=bowl_fast&n=9&from=0.3&to=0.98&cam=side"
+# foot-slip measurement while travelling at v m/s (prints RESULT {...})
+SHOT_DIR=/tmp/shot PAGE=anim VW=640 VH=360 node tools/kit-preview/run.mjs out.png "?mode=move&a=sprint&v=5.5&auto=1"
+```
