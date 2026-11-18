@@ -139,7 +139,7 @@ export default function BoardSelection() {
   return (
     <div className="space-y-6 pb-16">
       {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0D1C32]/90 p-4 shadow-lg">
         <div className="flex items-center gap-4">
           <button 
             onClick={goBack}
@@ -154,6 +154,7 @@ export default function BoardSelection() {
             <div>
               <div className="text-[10px] font-black text-[#F5B82E] uppercase tracking-wider mb-0.5">{team?.name} Cricket Board</div>
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">Select 15-Man Tournament Squad</h1>
+              <p className="mt-1 text-[10px] font-semibold text-[#839AB7]">STEP 03 / 04 <span className="px-1 text-blue-300">•</span> Choose 15 players <span className="px-1 text-blue-300">•</span> Auto-pick is available as a starting point</p>
             </div>
           </div>
         </div>
@@ -171,7 +172,7 @@ export default function BoardSelection() {
           <button
             disabled={selectedIds.length !== 15}
             onClick={handleProceed}
-            className="flex items-center gap-1.5 px-5 py-2.5 bg-[#258BFF] hover:bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all disabled:opacity-40 disabled:pointer-events-none active:scale-95 shadow-lg btn-glow cursor-pointer"
+            className="hidden md:flex items-center gap-1.5 px-5 py-2.5 bg-[#258BFF] hover:bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all disabled:opacity-40 disabled:pointer-events-none active:scale-95 shadow-lg btn-glow cursor-pointer"
           >
             <span>Confirm Squad</span>
             <ChevronRight className="w-4 h-4" />
@@ -212,12 +213,14 @@ export default function BoardSelection() {
               const displayRating = selectedFormat ? getPlayerRating(player, selectedFormat) : player.rating;
 
               return (
-                <div 
+                <button
+                  type="button"
+                  aria-pressed={isSelected}
                   key={player.id}
                   onClick={() => togglePlayer(player.id)}
                   onDoubleClick={() => setViewedPlayer(player.id)}
                   className={cn(
-                    "glass-card flex flex-col p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group select-none shadow-md",
+                    "glass-card flex w-full flex-col p-3 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden group select-none shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F5B82E]",
                     isSelected 
                       ? "border-[#258BFF] bg-gradient-to-b from-[#152C4D] to-[#10233D] ring-2 ring-blue-500/30" 
                       : "border-white/5 bg-[#071426]/70 hover:border-white/20 hover:bg-[#10233D]/60"
@@ -251,7 +254,7 @@ export default function BoardSelection() {
                       <span className="text-xs font-black text-white tabular-nums">{displayRating}</span>
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -338,6 +341,21 @@ export default function BoardSelection() {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0B1A2E]/95 p-3 shadow-2xl backdrop-blur-xl md:hidden">
+        <div className="min-w-0 flex-1">
+          <div className="text-[9px] font-bold uppercase tracking-wider text-[#839AB7]">National squad</div>
+          <div className="text-sm font-black tabular-nums text-white">{selectedIds.length} / 15 selected</div>
+        </div>
+        <button
+          type="button"
+          disabled={selectedIds.length !== 15}
+          onClick={handleProceed}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#258BFF] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg transition-colors hover:bg-blue-500 disabled:pointer-events-none disabled:opacity-40"
+        >
+          Confirm squad <ChevronRight className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Floating Toast Notification */}
