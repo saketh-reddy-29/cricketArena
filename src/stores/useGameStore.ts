@@ -691,20 +691,28 @@ export const useGameStore = create<GameStore>()(
       updatePurse: (franchiseId, amount) => set((state) => ({
         franchises: state.franchises.map(f => f.id === franchiseId ? { ...f, purse: f.purse - amount } : f)
       })),
-      addToSquad: (franchiseId, playerId) => set((state) => ({
-        franchises: state.franchises.map(f => {
-          if (f.id !== franchiseId) return f;
-          if (f.squad.includes(playerId)) return f;
-          
-          const player = state.players.length > 0 ? state.players.find(p => p.id === playerId) : null;
-          const isOverseas = player?.nationality === 'Overseas';
-          return { 
-            ...f, 
-            squad: [...f.squad, playerId],
-            overseasCount: isOverseas ? f.overseasCount + 1 : f.overseasCount
-          };
-        })
-      })),
+      addToSquad: (franchiseId, playerId) => set((state) => {
+        const canonicalId = PLAYER_ID_CANONICAL_MAP[playerId] || playerId;
+        const player = CANONICAL_PLAYER_BY_ID.get(canonicalId);
+        const existingOwner = state.franchises.find((franchise) => franchise.id !== franchiseId && franchise.squad.includes(canonicalId));
+        const soldOwner = state.playerOwnershipMap[canonicalId];
+        if (!player || existingOwner || (soldOwner?.status === 'SOLD' && soldOwner.teamId !== franchiseId)) return state;
+
+        return {
+          franchises: state.franchises.map((franchise) => {
+            if (franchise.id !== franchiseId || franchise.squad.includes(canonicalId)) return franchise;
+            return {
+              ...franchise,
+              squad: [...franchise.squad, canonicalId],
+              overseasCount: player.nationality === 'Overseas' ? franchise.overseasCount + 1 : franchise.overseasCount,
+            };
+          }),
+          playerOwnershipMap: {
+            ...state.playerOwnershipMap,
+            [canonicalId]: { status: 'RETAINED', teamId: franchiseId, price: soldOwner?.price || player.basePrice || 0, timestamp: Date.now() },
+          },
+        };
+      }),
       removeFromSquad: (franchiseId, playerId) => set((state) => {
         const player = CANONICAL_PLAYER_BY_ID.get(PLAYER_ID_CANONICAL_MAP[playerId] || playerId);
         const ownership = state.playerOwnershipMap[playerId] || state.playerOwnershipMap[PLAYER_ID_CANONICAL_MAP[playerId] || playerId];
