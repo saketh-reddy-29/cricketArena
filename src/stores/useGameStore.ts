@@ -138,6 +138,11 @@ const PLAYER_NAME_ALIASES: Record<string, string> = {
   'Ishant Kishan': 'Ishan Kishan',
   'Liam Ferguson': 'Lockie Ferguson',
   'Varun Chakaravarthy': 'Varun Chakravarthy',
+  'Raj Bawa': 'Raj Angad Bawa',
+  'Allah Ghazanfar': 'Allah Mohammad Ghazanfar',
+  'Luvnith Sisodia': 'Luvnith Sujith Sisodia',
+  'Yash Thakur': 'Yash Ravisingh Thakur',
+  'Pravin Dubey': 'Praveen Dubey',
 };
 
 const canonicalPlayerName = (name: string) => PLAYER_NAME_ALIASES[name] || name;
