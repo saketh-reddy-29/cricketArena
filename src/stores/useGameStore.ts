@@ -1891,8 +1891,8 @@ export const useGameStore = create<GameStore>()(
 
         // Released players are deliberately not re-added by the default-squad fallback.
         released.forEach((id) => {
-          nextOwnership[id] = state.playerOwnershipMap[id] || { status: 'RELEASED', timestamp: Date.now() };
-          nextOwnership[id].status = 'RELEASED';
+          const previous = state.playerOwnershipMap[id];
+          nextOwnership[id] = { ...(previous || {}), status: 'RELEASED', timestamp: previous?.timestamp ?? Date.now() };
         });
 
         const availableAfterSkip = state.players
@@ -1916,7 +1916,7 @@ export const useGameStore = create<GameStore>()(
           withdrawnTeams: [],
           bidLog: [],
           unsoldPlayerIds: availableAfterSkip,
-          activeTab: 'OVERVIEW',
+          activeTab: 'MATCHES',
           gameState: GameState.ARENA_HUB,
         };
       }),
