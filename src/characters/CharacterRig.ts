@@ -65,8 +65,10 @@ interface CharacterRigBlueprint {
 // independently animated skinned scene for each character.
 function isHeadDominantMesh(mesh: THREE.SkinnedMesh): boolean {
   const meshName = (mesh.name || '').toLowerCase();
-  if (/(hair|eyebrow|eyelash|eye|helmet|grille)/.test(meshName)) return false;
-  if (/(head|face|skin)/.test(meshName)) return true;
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  const materialNames = materials.map((material) => (material.name || '').toLowerCase()).join(' ');
+  if (/(hair|eyebrow|eyelash|eye|helmet|grille)/.test(meshName) || /(hair|eyebrow|eyelash|eye|helmet|grille)/.test(materialNames)) return false;
+  if (/(head|face|skin)/.test(meshName) || /(head|face|skin)/.test(materialNames)) return true;
   const names = mesh.skeleton.bones.map((bone) => (bone.name || '').toLowerCase());
   const headIndexes = new Set<number>();
   names.forEach((name, index) => { if (name.includes('head') || name.includes('face')) headIndexes.add(index); });
