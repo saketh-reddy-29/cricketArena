@@ -22,6 +22,7 @@ export interface CricketArenaPose {
   latR?: number;   // Right arm lateral offset
   tw?: number;     // Spine twist angle
   toe?: number;    // Foot pitch angle
+  mir?: number;    // 1 = left-handed batter (right hand is the top hand on the handle)
   hd?: number;     // Head yaw relative to the body (+ = look to the character's left)
 }
 
@@ -767,11 +768,15 @@ export function getCricketArenaPose(
       [1, KEEPER_READY_POSE],
     ], t);
   } else if (action === 'keeperDiveL' || action === 'keeperDiveR') {
-    const isLeft = action === 'keeperDiveL';
+    const sg = action === 'keeperDiveL' ? -1 : 1;
+    // coil low, push off, stretch both gloves to the line of the ball, land on the ground (not hovering)
     pose = interpolateKeyframes([
       [0, KEEPER_READY_POSE],
-      [0.35, { rot: isLeft ? -1.3 : 1.2, air: 0.5, lhx: 0.2, lhy: 2.0, rhx: 0.3, rhy: 2.0 }],
-      [1.0, { rot: isLeft ? -1.5 : 1.5, air: 0.25, lhx: 0.2, lhy: 2.0 }],
+      [0.22, { ...KEEPER_READY_POSE, crouch: 0.62, lean: 0.35, rot: sg * 0.15, lhx: 0.45, lhy: 0.7, rhx: 0.5, rhy: 0.7, head: -0.1 }],
+      [0.42, { rot: sg * 0.95, air: 0.42, lean: 0.1, lhx: 0.2, lhy: 2.0, rhx: 0.3, rhy: 2.05, lfy: 0.25, rfy: 0.3, head: -0.3 }],
+      [0.62, { rot: sg * 1.3, air: 0.46, lhx: 0.2, lhy: 2.1, rhx: 0.3, rhy: 2.1, lfy: 0.3, rfy: 0.3, head: -0.3 }],
+      [0.85, { rot: sg * 1.5, air: 0.17, lhx: 0.2, lhy: 2.0, rhx: 0.3, rhy: 2.0, lfy: 0.2, rfy: 0.25, head: -0.2 }],
+      [1.0, { rot: sg * 1.5, air: 0.16, lhx: 0.25, lhy: 1.8, rhx: 0.3, rhy: 1.8, head: -0.1 }],
     ], t);
   } else if (action === 'stumping') {
     pose = interpolateKeyframes([
@@ -782,56 +787,69 @@ export function getCricketArenaPose(
 
   // 6. FIELDING (Ground collection, catches, dives, throws)
   } else if (action === 'groundField') {
+    // Low, balanced attack on the ball: head down on it, gather, then rise and turn ready to throw.
     pose = interpolateKeyframes([
-      [0, { lean: 0.25, crouch: 0.2, lhx: 0.45, lhy: 0.55, rhx: 0.5, rhy: 0.5 }],
-      [0.35, { lean: 0.6, crouch: 0.4, lfx: -0.2, rfx: 0.35, lhx: 0.7, lhy: 0.1, rhx: 0.75, rhy: 0.08 }],
-      [1, { lean: 0.2, crouch: 0.1 }],
+      [0, { lean: 0.25, crouch: 0.2, lhx: 0.45, lhy: 0.55, rhx: 0.5, rhy: 0.5, head: 0.05 }],
+      [0.35, { lean: 0.6, crouch: 0.4, lfx: -0.2, rfx: 0.35, lhx: 0.7, lhy: 0.1, rhx: 0.75, rhy: 0.08, head: 0.35, tw: 0.1 }],
+      [0.6, { lean: 0.5, crouch: 0.35, lfx: -0.2, rfx: 0.3, lhx: 0.55, lhy: 0.35, rhx: 0.6, rhy: 0.3, head: 0.15, tw: -0.15 }],
+      [1, { lean: 0.2, crouch: 0.12, tw: -0.3, lhx: 0.35, lhy: 1.1, rhx: -0.1, rhy: 1.25, head: -0.05 }],
     ], t);
   } else if (action === 'ballPickup') {
     pose = interpolateKeyframes([
-      [0, { lean: 0.3, crouch: 0.2 }],
-      [0.4, { lean: 0.9, crouch: 0.3, lfx: -0.3, rfx: 0.3, lhx: 0.9, lhy: 0.1 }],
-      [0.55, { lean: 0.9, crouch: 0.3, lhx: 0.9, lhy: 0.1 }],
-      [1, { lean: 0.1, lhx: 0.4, lhy: 0.9 }],
+      [0, { lean: 0.3, crouch: 0.2, head: 0.05 }],
+      [0.4, { lean: 0.9, crouch: 0.3, lfx: -0.3, rfx: 0.3, lhx: 0.9, lhy: 0.1, head: 0.4, tw: 0.1 }],
+      [0.55, { lean: 0.9, crouch: 0.3, lhx: 0.9, lhy: 0.1, head: 0.4 }],
+      [0.8, { lean: 0.35, crouch: 0.2, lhx: 0.5, lhy: 0.7, rhx: 0.3, rhy: 0.9, tw: -0.25, head: 0.05 }],
+      [1, { lean: 0.15, tw: -0.3, lhx: 0.4, lhy: 0.9, rhx: -0.1, rhy: 1.2 }],
     ], t);
   } else if (action === 'highCatch') {
+    // Track the ball with the head, rise on the toes, hands up, then cushion the ball in to the chest.
     pose = interpolateKeyframes([
-      [0, { lean: 0.1, crouch: 0.1, lhx: 0.3, lhy: 1.0, rhx: 0.35, rhy: 1.0 }],
-      [0.4, { lean: 0, lhx: 0.4, lhy: 2.0, rhx: 0.5, rhy: 2.0, air: 0.06 }],
-      [0.72, { lhx: 0.4, lhy: 2.0, rhx: 0.5, rhy: 2.0 }],
-      [1, { lhx: 0.25, lhy: 0.9, rhx: 0.3, rhy: 0.85, crouch: 0.1 }],
+      [0, { lean: 0.1, crouch: 0.1, lhx: 0.3, lhy: 1.0, rhx: 0.35, rhy: 1.0, head: -0.1 }],
+      [0.4, { lean: -0.05, crouch: 0, lhx: 0.4, lhy: 2.0, rhx: 0.5, rhy: 2.0, air: 0.07, lfy: 0.05, rfy: 0.02, head: -0.4 }],
+      [0.72, { lean: -0.02, lhx: 0.4, lhy: 2.0, rhx: 0.5, rhy: 2.0, air: 0.03, head: -0.35 }],
+      [1, { lhx: 0.25, lhy: 0.95, rhx: 0.3, rhy: 0.9, crouch: 0.15, lean: 0.12, head: 0.1 }],
     ], t);
   } else if (action === 'diveCatch' || action === 'diveStop') {
+    // Coil and push off, fly with arms extended, land on the ground and skid (body rests on the turf, no hover).
     pose = interpolateKeyframes([
       [0, { lean: 0.35, crouch: 0.15, lhx: 0.5, lhy: 1.0, rhx: 0.5, rhy: 1.0 }],
-      [0.26, { rot: 1.0, air: 0.55, lhx: 0.1, lhy: 2.0, rhx: 0.2, rhy: 2.1, lfx: -0.3, rfx: -0.5, lfy: 0.2, rfy: 0.3 }],
-      [0.55, { rot: 1.4, air: 0.4, lhx: 0.1, lhy: 2.1, rhx: 0.2, rhy: 2.1, lfx: -0.2, rfx: -0.4, lfy: 0.3, rfy: 0.3 }],
-      [1, { rot: 1.5, air: 0.28, lhx: 0.1, lhy: 2.0, rhx: 0.2, rhy: 2.1 }],
+      [0.18, { lean: 0.5, crouch: 0.38, rot: 0.15, lfx: -0.2, rfx: 0.35, lhx: 0.5, lhy: 0.8, rhx: 0.55, rhy: 0.8, head: -0.1 }],
+      [0.34, { rot: 0.85, air: 0.42, lean: 0.2, lhx: 0.1, lhy: 2.0, rhx: 0.2, rhy: 2.05, lfx: -0.3, rfx: -0.5, lfy: 0.25, rfy: 0.32, head: -0.3 }],
+      [0.55, { rot: 1.35, air: 0.46, lhx: 0.1, lhy: 2.1, rhx: 0.2, rhy: 2.1, lfx: -0.2, rfx: -0.4, lfy: 0.3, rfy: 0.3, head: -0.3 }],
+      [0.8, { rot: 1.5, air: 0.17, lhx: 0.1, lhy: 2.0, rhx: 0.2, rhy: 2.05, lfy: 0.2, rfy: 0.22, head: -0.2 }],
+      [1, { rot: 1.5, air: 0.16, lhx: 0.15, lhy: 1.8, rhx: 0.25, rhy: 1.85 }],
     ], t);
   } else if (action === 'getUp') {
     pose = interpolateKeyframes([
-      [0, { rot: 1.5, air: 0.28, lhx: 0.1, lhy: 2.0 }],
-      [0.45, { rot: 0.5, air: 0.05, lean: 0.7, crouch: 0.4, lhx: 0.7, lhy: 0.3, rhx: 0.7, rhy: 0.3 }],
+      [0, { rot: 1.5, air: 0.16, lhx: 0.15, lhy: 1.8 }],
+      [0.45, { rot: 0.55, air: 0.05, lean: 0.7, crouch: 0.4, lhx: 0.7, lhy: 0.3, rhx: 0.7, rhy: 0.3, head: 0.1 }],
       [1, { lean: 0.2, crouch: 0.1 }],
     ], t);
   } else if (action === 'slide') {
     pose = interpolateKeyframes([
-      [0, { lean: 0.3 }],
-      [0.35, { rot: 1.3, air: 0.25, lhx: 0.1, lhy: 2.0 }],
-      [1, { rot: 1.45, air: 0.25 }],
+      [0, { lean: 0.3, crouch: 0.3 }],
+      [0.35, { rot: 1.3, air: 0.2, lhx: 0.1, lhy: 2.0 }],
+      [1, { rot: 1.45, air: 0.16 }],
     ], t);
   } else if (action === 'throwOver' || action === 'throwPower') {
-    const power = action === 'throwPower';
+    // Overarm throw: side-on cock (chest turned away, glove arm pointing at the target), stride, hips and shoulders
+    // unwind, release over the top at ~0.38, then the back leg swings through as the body follows the ball.
+    const pw = action === 'throwPower' ? 1.15 : 1;
     pose = interpolateKeyframes([
-      [0, { lean: -0.1, lfx: -0.3, rfx: 0.3, rhx: power ? -0.6 : -0.5, rhy: power ? 1.6 : 1.5, lhx: 0.5, lhy: 1.2 }],
-      [0.35, { lean: 0.3, rhx: power ? 0.8 : 0.7, rhy: power ? 1.9 : 1.85, lfx: -0.3, rfx: 0.4, lhx: 0.3, lhy: 0.9 }],
-      [1, { lean: 0.5, rhx: 0.3, rhy: 0.5, rfx: 0.5 }],
+      [0, { lean: 0.12, crouch: 0.12, tw: -0.1, lfx: 0.05, rfx: -0.2, lhx: 0.4, lhy: 1.2, rhx: -0.1, rhy: 1.3 }],
+      [0.18, { lean: -0.05, crouch: 0.15, tw: -0.55 * pw, lfx: 0.3, rfx: -0.3, lhx: 0.6, lhy: 1.5, rhx: -0.75, rhy: 1.7, head: -0.1 }],
+      [0.38, { lean: 0.4, crouch: 0.2, tw: 0.4 * pw, lfx: 0.5, rfx: -0.25, lhx: 0.1, lhy: 0.9, rhx: 0.75 * pw, rhy: 1.9, air: action === 'throwPower' ? 0.04 : 0, head: -0.05 }],
+      [0.6, { lean: 0.65, crouch: 0.22, tw: 0.7 * pw, lfx: 0.45, rfx: 0.3, rfy: 0.12, lhx: 0.05, lhy: 0.75, rhx: 0.4, rhy: 0.6 }],
+      [1, { lean: 0.3, crouch: 0.15, tw: 0.15, lfx: 0.2, rfx: 0.1, rhx: 0.25, rhy: 0.6, lhx: 0.2, lhy: 0.8 }],
     ], t);
   } else if (action === 'throwQuick' || action === 'throwUnder') {
+    // Short, flat flick off the front foot (direct-hit / run-out throws).
     pose = interpolateKeyframes([
-      [0, { lean: 0.1, lfx: -0.2, rfx: 0.2, rhx: -0.2, rhy: 0.5, lhx: 0.4, lhy: 0.8 }],
-      [0.35, { lean: 0.25, rhx: 0.6, rhy: 0.3, lfx: -0.2, rfx: 0.3, lhx: 0.3, lhy: 0.6 }],
-      [1, { lean: 0.4, rhx: 0.3, rhy: 0.4 }],
+      [0, { lean: 0.2, crouch: 0.2, tw: -0.1, lfx: 0.05, rfx: -0.2, rhx: -0.2, rhy: 0.55, lhx: 0.4, lhy: 0.8 }],
+      [0.2, { lean: 0.25, crouch: 0.22, tw: -0.25, lfx: 0.25, rfx: -0.25, rhx: -0.3, rhy: 0.7, lhx: 0.5, lhy: 0.8 }],
+      [0.38, { lean: 0.4, crouch: 0.2, tw: 0.3, lfx: 0.4, rfx: -0.2, rhx: 0.65, rhy: 0.35, lhx: 0.25, lhy: 0.6 }],
+      [1, { lean: 0.45, crouch: 0.15, tw: 0.35, lfx: 0.3, rfx: 0.1, rhx: 0.35, rhy: 0.4 }],
     ], t);
   } else if (action === 'catchChest') {
     pose = interpolateKeyframes([
@@ -912,14 +930,25 @@ export function getCricketArenaPose(
     ], t);
   }
 
-  // Left-handed batter mirroring: mirror feet and lateral offsets (not raw negative scale on mesh)
+  // Left-handed batter: a true mirror image. The body turns the other way (yw -> -yw), the right hand becomes the
+  // top hand (mir), feet and hands swap sides. The rig blends the foot offsets with |yw|, so a plain left/right swap mirrors the feet
+  // (and the lift lfy/rfy swaps because the front foot changes sides). Bat angle and hand reach flip through the reversed axis.
   if (isLeftHanded && pose.yw) {
-    const origLfx = pose.lfx ?? REST.lfx;
-    const origRfx = pose.rfx ?? REST.rfx;
-    pose.lfx = origRfx;
-    pose.rfx = origLfx;
+    const oLfx = pose.lfx ?? REST.lfx;
+    pose.lfx = pose.rfx ?? REST.rfx;
+    pose.rfx = oLfx;
+    const oLfy = pose.lfy ?? REST.lfy;
+    pose.lfy = pose.rfy ?? REST.rfy;
+    pose.rfy = oLfy;
+    const oLhx = pose.lhx ?? REST.lhx;
+    const oLhy = pose.lhy ?? REST.lhy;
+    pose.lhx = pose.rhx ?? REST.rhx;
+    pose.lhy = pose.rhy ?? REST.rhy;
+    pose.rhx = oLhx;
+    pose.rhy = oLhy;
+    pose.yw = -(pose.yw as number);
+    pose.mir = 1;
     if (pose.tw) pose.tw = -pose.tw;
-    if (pose.ba) pose.ba = -pose.ba;
     if (pose.latL || pose.latR) {
       const ol = pose.latL || 0;
       pose.latL = -(pose.latR || 0);

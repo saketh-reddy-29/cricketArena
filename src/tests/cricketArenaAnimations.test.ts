@@ -157,3 +157,29 @@ describe('batting rotation', () => {
     });
   });
 });
+
+describe('left-handed batter is a true mirror image', () => {
+  it('turns the body the other way and makes the right hand the top hand', () => {
+    const r = getCricketArenaPose('batIdle', 0, 0, false);
+    const l = getCricketArenaPose('batIdle', 0, 0, true);
+    expect(r.yw).toBe(1);
+    expect(l.yw).toBe(-1);
+    expect(r.mir ?? 0).toBe(0);
+    expect(l.mir).toBe(1);
+  });
+
+  it('swaps the leading foot and the foot lift', () => {
+    const r = getCricketArenaPose('coverDrive', 0.24, 0, false);
+    const l = getCricketArenaPose('coverDrive', 0.24, 0, true);
+    expect(l.lfx).toBeCloseTo(r.rfx, 6);
+    expect(l.rfx).toBeCloseTo(r.lfx, 6);
+    expect(l.lfy).toBeCloseTo(r.rfy, 6);
+    expect(l.rfy).toBeCloseTo(r.lfy, 6);
+  });
+
+  it('does not touch non-batting actions', () => {
+    const l = getCricketArenaPose('fielderReady', 0, 1, true, 0.2);
+    expect(l.yw).toBe(0);
+    expect(l.mir ?? 0).toBe(0);
+  });
+});

@@ -105,11 +105,11 @@ describe('batter motion (running between the wickets, walk-off / walk-in)', () =
     expect(m.sPos).toEqual(S); expect(m.nPos).toEqual(N); expect(m.incoming).toBeNull();
   });
 
-  it('durations: wicket 6.5 s, runs 1.8 / 3.3 / 4.8 s at normal speed, faster at higher speed', () => {
+  it('durations: wicket 6.5 s, runs 2.8 / 5.1 / 7.4 s at normal speed (realistic ~6 m/s running), faster at higher speed', () => {
     expect(transitionDurationMs('WICKET', 0, 1)).toBe(6500);
-    expect(transitionDurationMs('RUNS', 1, 1)).toBe(1800);
-    expect(transitionDurationMs('RUNS', 2, 1)).toBe(3300);
-    expect(transitionDurationMs('RUNS', 3, 1)).toBe(4800);
-    expect(transitionDurationMs('RUNS', 3, speedToMultiplier(2.5))).toBeLessThan(2500);
+    expect(transitionDurationMs('RUNS', 1, 1)).toBe(2800);
+    expect(transitionDurationMs('RUNS', 2, 1)).toBe(5100);
+    expect(transitionDurationMs('RUNS', 3, 1)).toBe(7400);
+    expect(transitionDurationMs('RUNS', 3, speedToMultiplier(2.5))).toBeLessThan(3500);
   });
 });

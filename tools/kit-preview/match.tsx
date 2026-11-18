@@ -47,6 +47,7 @@ function App() {
         matchFormat={fmt}
         initialCameraMode={cam}
         initialDay={day}
+        isLeftHanded={q.get('lh') === '1'}
         batterTransition={trKind ? { kind: trKind, progress: trP, runs: parseInt(q.get('runs') || '2') } : null}
       />
     </div>

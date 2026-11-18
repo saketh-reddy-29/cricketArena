@@ -13,7 +13,7 @@ export const PAVILION_EXIT: [number, number] = [-28, 6];
 /** How long (ms) the batter movement lasts at a given playback multiplier (1 = normal). */
 export function transitionDurationMs(kind: TransitionKind, runs: number, speedMult: number): number {
   const r = Math.min(3, Math.max(1, runs));
-  return (kind === 'WICKET' ? 6500 : 1500 * r + 300) / Math.max(0.1, speedMult);
+  return (kind === 'WICKET' ? 6500 : 2300 * r + 500) / Math.max(0.1, speedMult);
 }
 
 /** Playback speed setting (0 skip, 1, 1.5, 2.5 ...) -> time multiplier. 0 means no movement phase. */

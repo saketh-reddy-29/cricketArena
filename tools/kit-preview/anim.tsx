@@ -75,7 +75,15 @@ function useDriver(onFrame: (i: number, t: number) => void, steps: number, t0 = 
 function Film() {
   const spacing = 1.55;
   const prog = (i: number) => (n === 1 ? from : from + ((to - from) * i) / (n - 1));
-  useDriver(() => {}, 30, clockT);
+  const { scene } = useThree();
+  useDriver((i) => {
+    if (i !== 30 || q.get('probe') !== '1') return;
+    const out: Record<string, number[]> = {};
+    scene.traverse((o: any) => {
+      if (o.isBone && /^(Left|Right)_(Foot|Shoulder|Arm|UpperArm|Hand)$/.test(o.name) && !out[o.name]) out[o.name] = o.getWorldPosition(new THREE.Vector3()).toArray().map((v) => +v.toFixed(3));
+    });
+    log('PROBE ' + JSON.stringify(out));
+  }, 30, clockT);
   return (
     <>
       {Array.from({ length: n }, (_, i) => (

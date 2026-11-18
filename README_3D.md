@@ -140,3 +140,8 @@ SHOT_DIR=/tmp/shot PAGE=anim VW=1800 VH=560 node tools/kit-preview/run.mjs out.p
 # foot-slip measurement while travelling at v m/s (prints RESULT {...})
 SHOT_DIR=/tmp/shot PAGE=anim VW=640 VH=360 node tools/kit-preview/run.mjs out.png "?mode=move&a=sprint&v=5.5&auto=1"
 ```
+
+### Handedness & field orientation (fixed)
+World +x is the **off side of a right-hander** (`toWorld` mirrors the 2D map's x). The batting stance is a true side-on stance
+(`yw = +1` right-hander, `yw = -1` left-hander with `mir = 1` swapping the top hand); the left-hander is a mirror image,
+not a right-hander with swapped feet. Run timing is ~6 m/s (`2300 * runs + 500` ms).

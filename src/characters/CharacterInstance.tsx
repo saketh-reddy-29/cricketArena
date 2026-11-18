@@ -130,6 +130,7 @@ function blendPoses(a: CricketArenaPose, b: CricketArenaPose, factor: number): C
     tw: lerpVal(a.tw, b.tw),
     toe: lerpVal(a.toe, b.toe),
     hd: lerpVal(a.hd, b.hd),
+    mir: (a.mir ?? 0) >= 0.5 || (b.mir ?? 0) >= 0.5 ? 1 : 0,
   };
 }
 
@@ -334,7 +335,7 @@ function CharacterInstanceInner({
     m.init = true;
 
     root.position.set(m.x, ty, m.z);
-    root.rotation.y = m.yaw - Math.PI / 2 + m.yw * Math.PI / 2 + m.sp;
+    root.rotation.y = m.yaw - Math.PI / 2 + m.sp;
 
     // ---- Choose the effective action (context-aware locomotion) ----
     let effAction: CricketArenaAction = action;
@@ -420,7 +421,7 @@ function CharacterInstanceInner({
     m.sp = pose.sp || 0;
 
     // Orientation inside the rig (side-on batting stance, celebration spin). Position and yaw were set above.
-    root.rotation.y = m.yaw - Math.PI / 2 + m.yw * Math.PI / 2 + m.sp;
+    root.rotation.y = m.yaw - Math.PI / 2 + m.sp;
 
     modelWrapper.position.y = pose.air || 0;
     modelWrapper.rotation.set(0, Math.PI / 2 - (pose.yw || 0) * Math.PI / 2, -(pose.rot || 0));

@@ -160,8 +160,8 @@
         const A = arm[s], k = s === 'L' ? 0 : 1;
         let hx = k ? p.rhx : p.lhx, hy = k ? p.rhy : p.lhy;
         const bd = [Math.sin(p.ba || 0), -Math.cos(p.ba || 0)];
-        if ((p.grip || 0) > 1.5) { if (k === 0) { hx = p.bx; hy = p.by; } else { hx = p.bx + bd[0] * 0.14; hy = p.by + bd[1] * 0.14; } }
-        const g = k ? cl(p.grip || 0, 0, 1) : cl((p.grip || 0) - 1, 0, 1);
+        if ((p.grip || 0) > 1.5) { if (k === (p.mir ? 1 : 0)) { hx = p.bx; hy = p.by; } else { hx = p.bx + bd[0] * 0.14; hy = p.by + bd[1] * 0.14; } }
+        const g = k === (p.mir ? 1 : 0) ? cl((p.grip || 0) - 1, 0, 1) : cl(p.grip || 0, 0, 1);
         const clv = A.clav, baseSh = add(pos.upper, qrot(delta.upper, sub(W(A.ua), W(R.upper))));
         const chord = sub([hx * g2m * EU[0], hy * g2m, hx * g2m * EU[2]], baseSh), cd = len(chord) || 1, elev = cl(chord[1] / cd * 1.3, 0, 1);
         let shoulder, clavDelta = delta.upper;
@@ -172,7 +172,7 @@
         const lat0 = Math.abs(A.sh[0]), fw = cl(hx / 0.5, 0, 1), up = cl((hy - 1.5) / 0.6, 0, 1);
         const spread = 0.05 * (1 - 0.8 * fw) + 0.05 * up;
         const lat = lerp(A.sgn * (lat0 + spread), A.sgn * 0.012, g) + (p['lat' + s] || 0);
-        return { A, k, g, shoulder, T: [lat + hx * g2m * EU[0], hy * g2m, hx * g2m * EU[2] + 0.26 * g2m * EU[0]] };
+        return { A, k, g, shoulder, T: [lat + hx * g2m * EU[0], hy * g2m, hx * g2m * EU[2] + 0.26 * g2m * Math.abs(EU[0])] };
       }
       const obstacles = (s, other) => {
         const o = body.slice(); o.push({ a: thighCap.L.a, b: pos.hips, r: RAD.thigh * 0.45, n: 'thighL' }); // thigh handled loosely
@@ -260,7 +260,7 @@
       /* ----- legs ----- */
       const legRes = {};
       function solveLeg(s, other) {
-        const G = leg[s], k = s === 'L' ? 0 : 1, fx0 = k ? p.rfx : p.lfx, fxo = k ? p.lfx : p.rfx, yw1 = p.yw || 0, fx = fx0 + (fxo - fx0) * yw1 /* side-on: left foot is the front foot */, fy = k ? p.rfy : p.lfy;
+        const G = leg[s], k = s === 'L' ? 0 : 1, fx0 = k ? p.rfx : p.lfx, fxo = k ? p.lfx : p.rfx, yw1 = p.yw || 0, fx = fx0 + (fxo - fx0) * Math.abs(yw1) /* side-on: left foot is the front foot */, fy = k ? p.rfy : p.lfy;
         const hipJoint = add(pos.hips, qrot(delta.hips, sub(W(G.ul), W(R.hips)))), ankleRest = W(G.ft);
         let T = [ankleRest[0] + (p['flat' + s] || 0) + fx * g2m * EU[0], ground + ankleH + fy * g2m, ankleRest[2] + fx * g2m * EU[2]];
         /* ankle (dorsiflexion) limit: when the shin leans too far over a flat foot the heel has to lift */
@@ -307,7 +307,7 @@
       /* ----- bat: keep the blade out of the player's own body ----- */
       out.ba = p.ba || 0;
       if ((p.grip || 0) > 0.5) {
-        const two = p.grip > 1.5, pv = two ? out.palmL : out.palmR, hold = (b) => { const dx = Math.sin(b), dy = -Math.cos(b); const piv = [pv[0] - dx * 0.06 * g2m * EU[0], pv[1] - dy * 0.06 * g2m, pv[2] - dx * 0.06 * g2m * EU[2]]; const tip = [piv[0] + dx * 1.05 * g2m * EU[0], piv[1] + dy * 1.05 * g2m, piv[2] + dx * 1.05 * g2m * EU[2]]; return [piv, tip]; };
+        const two = p.grip > 1.5, pv = two ? (p.mir ? out.palmR : out.palmL) : (p.mir ? out.palmL : out.palmR), hold = (b) => { const dx = Math.sin(b), dy = -Math.cos(b); const piv = [pv[0] - dx * 0.06 * g2m * EU[0], pv[1] - dy * 0.06 * g2m, pv[2] - dx * 0.06 * g2m * EU[2]]; const tip = [piv[0] + dx * 1.05 * g2m * EU[0], piv[1] + dy * 1.05 * g2m, piv[2] + dx * 1.05 * g2m * EU[2]]; return [piv, tip]; };
         const legCaps = [{ a: pos.hips, b: pos.chest, r: RAD.pelvis }, { a: pos.chest, b: pos.neck, r: RAD.chest }, { a: headC, b: headC, r: RAD.head }, { a: legRes.L.hip, b: legRes.L.K, r: RAD.thigh }, { a: legRes.L.K, b: legRes.L.An, r: RAD.shin }, { a: legRes.R.hip, b: legRes.R.K, r: RAD.thigh }, { a: legRes.R.K, b: legRes.R.An, r: RAD.shin }];
         const clr = b => { const [piv, tip] = hold(b); let m = 1e9; for (const c of legCaps) m = Math.min(m, clearSeg(piv, tip, RAD.bat, 0.22, 1, c).m); return m; };
         let want = p.ba || 0, bestB = want;

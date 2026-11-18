@@ -7,6 +7,8 @@
  * stretches radially, so the pitch area is true scale while the outfield is a proper big ground.
  *
  * World axes: +z is the striker's end (batter's stumps at z = +PITCH_HALF), -z the bowler's end.
+ * +x is the OFF side of a right-handed striker (his right when he faces the bowler at -z). The 2D map is drawn
+ * from behind the bowler, where a right-hander's off side is on the left, so 2D x is mirrored into world x.
  */
 export const PITCH_HALF = 10.06;          // stumps to centre (20.12 m pitch)
 export const CREASE_Z = 8.84;             // popping crease = stumps - 1.22 m
@@ -31,5 +33,5 @@ export function toWorld(point: { x: number; y: number }): [number, number] {
   const r = Math.hypot(dx, dz);
   if (r < 1e-6) return [0, 0];
   const k = radiusToMetres(r) / r;
-  return [dx * k, dz * k];
+  return [-dx * k, dz * k];
 }

@@ -213,7 +213,7 @@ function StadiumScene({
   // Safe lateral offset for non-striker so they stand beside the pitch, never in the bowler's path
   const rawNonStriker = toWorld(nonStrikerPos);
   const nonStrikerWorld: [number, number] = useMemo(() => {
-    const latOffset = isLeftHanded ? 1.85 : -1.85;
+    const latOffset = isLeftHanded ? -1.85 : 1.85;
     const x = Math.abs(rawNonStriker[0]) < 0.6 ? latOffset : rawNonStriker[0];
     return [x, rawNonStriker[1]];
   }, [rawNonStriker, isLeftHanded]);
@@ -565,12 +565,12 @@ function StadiumScene({
       </CharacterErrorBoundary>
 
       {/* Square-leg Umpire */}
-      <CharacterErrorBoundary fallback={<CharacterLoadingSilhouette position={[isLeftHanded ? -20 : 20, CREASE_Z - 0.5]} yaw={isLeftHanded ? Math.PI / 2 : -Math.PI / 2} />}>
-        <Suspense fallback={<CharacterLoadingSilhouette position={[isLeftHanded ? -20 : 20, CREASE_Z - 0.5]} yaw={isLeftHanded ? Math.PI / 2 : -Math.PI / 2} />}>
+      <CharacterErrorBoundary fallback={<CharacterLoadingSilhouette position={[isLeftHanded ? 20 : -20, CREASE_Z - 0.5]} yaw={isLeftHanded ? -Math.PI / 2 : Math.PI / 2} />}>
+        <Suspense fallback={<CharacterLoadingSilhouette position={[isLeftHanded ? 20 : -20, CREASE_Z - 0.5]} yaw={isLeftHanded ? -Math.PI / 2 : Math.PI / 2} />}>
           <CharacterInstance
             modelUrl={LIGHT_MODEL}
-            position={[isLeftHanded ? -20 : 20, CREASE_Z - 0.5]}
-            yaw={isLeftHanded ? Math.PI / 2 : -Math.PI / 2}
+            position={[isLeftHanded ? 20 : -20, CREASE_Z - 0.5]}
+            yaw={isLeftHanded ? -Math.PI / 2 : Math.PI / 2}
             action="stand"
             progress={0}
             heightScale={0.98}
@@ -599,7 +599,7 @@ function StadiumScene({
           ? bowlerWorld
           : isKeeper && !active
           ? [
-              isLeftHanded ? 0.25 : -0.25,
+              isLeftHanded ? -0.25 : 0.25,
               bowling.kind === 'SPIN' ? PITCH_HALF + 1.25 : PITCH_HALF + 3.4,
             ]
           : active
