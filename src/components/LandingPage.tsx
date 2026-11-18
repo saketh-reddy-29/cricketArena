@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useGameStore, GameState, ArenaFormat } from '../stores/useGameStore';
 import { useArenaStore } from '../stores/useArenaStore';
+import { cn } from '../lib/utils';
 
 const HomePage = React.lazy(() => import('./pages/HomePage'));
 const MatchRecoveryBanner = React.lazy(() => import('./common/MatchRecoveryBanner'));
