@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, GameState } from '../stores/useGameStore';
 import { MatchEngine } from '../lib/matchEngine';
@@ -14,10 +14,16 @@ import { describeGround, describePitch, describeWeather, summarizeConditionsForL
 import type { MatchFormatKey } from '../engine/conditions';
 import type { Player } from '../types/common';
 import { useGLTF } from '@react-three/drei';
+import ModelPreloader from './common/ModelPreloader';
 
 // Preload 3D stadium character models in PreMatch so they are cached before live match starts
 useGLTF.preload('/models/cricket-arena/cartoon_sports_character_3d_model.glb');
 useGLTF.preload('/models/cricket-arena/cartoon_character_3d_model.glb');
+
+const MATCH_CHARACTER_MODELS = [
+  '/models/cricket-arena/cartoon_sports_character_3d_model.glb',
+  '/models/cricket-arena/cartoon_character_3d_model.glb',
+] as const;
 
 const IPL_TEAM_LOGOS: Record<string, string> = {
   MI:   'https://cricketvectors.akamaized.net/Teams/F.png',
@@ -59,6 +65,15 @@ export default function PreMatch() {
 
   const isIPL = useGameStore((s) => s.selectedFormat === 'IPL');
   const format = (useGameStore((s) => s.selectedFormat) || 'T20') as any;
+  const [isPreparingMatch, setIsPreparingMatch] = useState(false);
+  const [matchStartCountdown, setMatchStartCountdown] = useState(3);
+  const [matchModelsReady, setMatchModelsReady] = useState(false);
+  const loadedMatchModelsRef = useRef<Set<string>>(new Set());
+  const markMatchModelReady = useCallback((modelUrl: string) => {
+    loadedMatchModelsRef.current.add(modelUrl);
+    if (MATCH_CHARACTER_MODELS.every((url) => loadedMatchModelsRef.current.has(url))) setMatchModelsReady(true);
+  }, []);
+
 
   const currentMatch = fixtures.find((f) => f.id === currentMatchId);
   const userTeam = franchises.find((f) => f.id === selectedFranchiseId);
@@ -292,24 +307,31 @@ export default function PreMatch() {
   };
 
   const startMatch = () => {
-    if (!isValidXI || !isOpponentXIValid) return;
-    if (captainId) {
-      setCaptain(userTeam.id, captainId);
+    if (!isValidXI || !isOpponentXIValid || isPreparingMatch) return;
+    setMatchStartCountdown(3);
+    setIsPreparingMatch(true);
+  };
+
+  // Do not enter the live renderer until both countdown and model readiness are satisfied.
+  useEffect(() => {
+    if (!isPreparingMatch) return;
+    if (matchStartCountdown > 0) {
+      const timeout = window.setTimeout(() => setMatchStartCountdown((value) => Math.max(0, value - 1)), 1000);
+      return () => window.clearTimeout(timeout);
     }
+    if (!matchModelsReady) return;
+
+    if (captainId) setCaptain(userTeam.id, captainId);
     if (tossResult && tossResult.decision) {
       setCurrentMatchToss({ winnerId: tossResult.winnerId, decision: tossResult.decision });
     }
-
     const team1XI = currentMatch?.team1Id === userTeam.id ? selectedIds : opponentOptimalSelection.playingXI;
     const team2XI = currentMatch?.team1Id === userTeam.id ? opponentOptimalSelection.playingXI : selectedIds;
-
-    if (currentMatch) {
-      setFixturePlayingXI(currentMatch.id, team1XI, team2XI);
-    }
+    if (currentMatch) setFixturePlayingXI(currentMatch.id, team1XI, team2XI);
     setPlayingXIIds(selectedIds);
+    setIsPreparingMatch(false);
     setGameState(GameState.MATCH_SIMULATION);
-  };
-
+  }, [isPreparingMatch, matchStartCountdown, matchModelsReady, captainId, tossResult, userTeam, currentMatch, selectedIds, opponentOptimalSelection, setCaptain, setCurrentMatchToss, setFixturePlayingXI, setPlayingXIIds, setGameState]);
   const getPitchAdvice = (type: PitchType) => {
     switch (type) {
       case PitchType.PACE:
@@ -327,6 +349,29 @@ export default function PreMatch() {
 
   return (
     <div className="min-h-screen bg-[#071426] text-[#F6F8FC] font-sans flex flex-col">
+      <React.Suspense fallback={null}>
+        {MATCH_CHARACTER_MODELS.map((modelUrl) => (
+          <ModelPreloader key={modelUrl} modelUrl={modelUrl} onReady={markMatchModelReady} />
+        ))}
+      </React.Suspense>
+      {isPreparingMatch && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-[#030a18]/95 px-5 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-3xl border border-emerald-300/25 bg-[#0b1b35] p-8 text-center shadow-2xl">
+            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300">Match Day Broadcast</div>
+            <h2 className="mt-3 text-2xl font-black text-white sm:text-3xl">GET READY FOR THE MATCH</h2>
+            {matchStartCountdown > 0 ? (
+              <div className="mx-auto my-6 grid h-24 w-24 place-items-center rounded-full border-4 border-emerald-300/60 bg-emerald-300/10 text-5xl font-black tabular-nums text-emerald-200">{matchStartCountdown}</div>
+            ) : (
+              <div className="my-7 flex flex-col items-center gap-3 text-sm font-bold text-cyan-100">
+                <span className="h-9 w-9 animate-spin rounded-full border-2 border-white/15 border-t-emerald-300" />
+                Loading 3D players, rigged characters and stadium assets…
+              </div>
+            )}
+            <p className="text-xs leading-5 text-[#9DAEC4]">The match starts only when both character models and their textures are ready.</p>
+            <button type="button" onClick={() => setIsPreparingMatch(false)} className="mt-5 rounded-xl border border-white/15 bg-white/5 px-5 py-2 text-xs font-bold text-[#c4d2e3] hover:bg-white/10">Cancel</button>
+          </div>
+        </div>
+      )}
       {/* Stadium Top Bar */}
       <header className="bg-[#0D1C32] border-b border-white/10 sticky top-0 z-40 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -831,11 +876,14 @@ export default function PreMatch() {
                   {tossResult.decision && (
                     <button
                       onClick={startMatch}
-                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm font-black transition-all shadow-lg shadow-emerald-600/30 cursor-pointer active:scale-95"
+                      disabled={isPreparingMatch}
+                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm font-black transition-all shadow-lg shadow-emerald-600/30 cursor-pointer active:scale-95 disabled:opacity-50"
                     >
-                      {activeMatchCheckpoint?.matchId === currentMatchId || (liveMatchState?.currentMatchId === currentMatchId)
-                        ? 'Resume In-Progress Match'
-                        : 'Walk Out to the Middle & Start Match'}
+                      {isPreparingMatch
+                        ? 'Preparing match…'
+                        : activeMatchCheckpoint?.matchId === currentMatchId || (liveMatchState?.currentMatchId === currentMatchId)
+                          ? 'Resume In-Progress Match'
+                          : 'Start Match · 3 Second Countdown'}
                     </button>
                   )}
                 </div>
