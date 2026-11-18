@@ -89,7 +89,7 @@ export default function App() {
 
       {!isFullScreenMatch && <GlobalAppHeader />}
 
-      <main className="arena-app-main flex-1 min-w-0 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-28 sm:pt-6 md:pb-6">
+      <main className={`arena-app-main flex-1 min-w-0 w-full mx-auto ${isFullScreenMatch ? "max-w-none p-0" : "max-w-[1720px] px-4 pt-5 pb-28 sm:px-6 sm:pt-6 md:px-8 md:pb-6"}`}>
         <React.Suspense fallback={<PageLoading />}>
           {gameState === GameState.LANDING && <LandingPage />}
           {gameState === GameState.TEAM_SELECTION && <TeamSelection />}
