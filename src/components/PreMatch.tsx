@@ -446,6 +446,7 @@ export default function PreMatch() {
 
         {step === 'squad' ? (
           /* SQUAD SELECTION STEP */
+          <>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             
             {/* LEFT 2 COLUMNS: User Team Squad Picker */}
@@ -681,6 +682,7 @@ export default function PreMatch() {
               Proceed to toss <ChevronRight className="h-4 w-4" />
             </button>
           </div>
+          </>
         ) : (
           /* TOSS STEP */
           <div className="max-w-xl mx-auto space-y-4">
