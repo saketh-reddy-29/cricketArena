@@ -69,7 +69,7 @@ export default function AuctionRoom() {
   const [auctionModelsReady, setAuctionModelsReady] = useState(false);
   const [auctionIntroCountdown, setAuctionIntroCountdown] = useState(3);
   const [auctionIntroComplete, setAuctionIntroComplete] = useState(false);
-  const resumeAfterIntroRef = useRef(Boolean(auctionIsPaused));
+  const resumeAfterIntroRef = useRef(Boolean(auctionPool.length > 0 && auctionIsPaused));
   const onAuctionModelReady = useCallback((_modelUrl: string) => setAuctionModelsReady(true), []);
 
   const franchiseAIStates = useRef<Map<string, FranchiseAIState>>(new Map());
@@ -116,6 +116,13 @@ export default function AuctionRoom() {
       initAuction('IPL');
     }
   }, [auctionPool, initAuction]);
+
+  // initAuction may populate the pool after the intro pause effect; reassert pause after initialization.
+  useEffect(() => {
+    if (auctionPool.length > 0 && !auctionIntroComplete) {
+      setAuctionPaused(true);
+    }
+  }, [auctionPool.length, auctionIntroComplete, setAuctionPaused]);
 
   const currentPlayerId = auctionPool[auctionPoolIndex] || null;
   const currentPlayer = useMemo(() => {
@@ -338,8 +345,9 @@ export default function AuctionRoom() {
                 {auctionIsPaused ? <Play className="w-4 h-4 text-green-400" /> : <Pause className="w-4 h-4 text-amber-400" />}
               </button>
               <button
+                disabled={!auctionIntroComplete}
                 onClick={() => simulateFullAuction(players)}
-                className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:pointer-events-none"
                 title="Instant simulation of remaining auction"
               >
                 <FastForward className="w-3.5 h-3.5" />
