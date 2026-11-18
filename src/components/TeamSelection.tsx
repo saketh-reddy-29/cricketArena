@@ -66,7 +66,7 @@ export default function TeamSelection() {
   if (!isIPL) {
     return (
       <div className="space-y-6 pb-16">
-        <header className="flex items-center justify-between border-b border-white/10 pb-4">
+        <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0D1C32]/90 p-4 shadow-lg">
           <div className="flex items-center gap-4">
             <button 
               onClick={goBack}
@@ -77,6 +77,7 @@ export default function TeamSelection() {
             <div>
               <div className="text-[10px] font-black text-[#F5B82E] uppercase tracking-wider mb-0.5">{selectedFormat} ARENA</div>
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">Select National Board</h1>
+              <p className="mt-1 text-[10px] font-semibold text-[#839AB7]">STEP 02 / 04 <span className="px-1 text-blue-300">•</span> Choose your side <span className="px-1 text-blue-300">•</span> Next: build your 15-player squad</p>
             </div>
           </div>
           <div className="text-xs text-[#9DAEC4] font-bold">
@@ -86,14 +87,16 @@ export default function TeamSelection() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {INTL_TEAMS_DATA.map((team, idx) => (
-            <motion.div
+            <motion.button
+              type="button"
+              aria-pressed={selectedId === team.id}
               key={team.id}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.03 }}
               onClick={() => setSelectedId(team.id)}
               className={cn(
-                "glass-card relative rounded-2xl border-2 transition-all duration-200 cursor-pointer overflow-hidden group p-5 flex flex-col items-center justify-between shadow-lg",
+                "glass-card relative min-h-[170px] w-full rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer overflow-hidden group p-4 sm:p-5 flex flex-col items-center justify-between shadow-lg",
                 selectedId === team.id 
                   ? "border-[#258BFF] bg-gradient-to-b from-[#152C4D] to-[#10233D] ring-2 ring-blue-500/30 scale-[1.02]" 
                   : "border-white/5 bg-[#071426]/70 hover:border-white/20 hover:bg-[#10233D]/60"
@@ -126,11 +129,11 @@ export default function TeamSelection() {
                   <Check className="w-3.5 h-3.5 text-white" />
                 </div>
               )}
-            </motion.div>
+            </motion.button>
           ))}
         </div>
 
-        <div className="glass-card rounded-2xl p-4 border border-white/10 flex items-center justify-between">
+        <div className="glass-card fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 md:sticky md:inset-auto md:bottom-4 flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-white/10 p-3 shadow-2xl sm:flex-row sm:items-center sm:p-4 md:bottom-4">
           <div className="text-xs text-[#9DAEC4] font-medium">
             {selectedId ? (
               <span>Selected: <strong className="text-white font-bold">{selectedIntlTeam?.name}</strong></span>
@@ -163,7 +166,7 @@ export default function TeamSelection() {
           className="space-y-6"
         >
           {/* Header */}
-          <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+          <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0D1C32]/90 p-4 shadow-lg">
             <div className="flex items-center gap-4">
               <button 
                 onClick={goBack}
@@ -174,6 +177,7 @@ export default function TeamSelection() {
               <div>
                 <div className="text-[10px] font-black text-[#F5B82E] uppercase tracking-wider mb-0.5">IPL 2026 ARENA</div>
                 <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">Choose Your Franchise</h1>
+                <p className="mt-1 text-[10px] font-semibold text-[#839AB7]">STEP 02 / 04 <span className="px-1 text-blue-300">•</span> Pick your team <span className="px-1 text-blue-300">•</span> Next: build through the mega auction</p>
               </div>
             </div>
             <div className="flex items-center gap-2.5 text-xs">
@@ -193,14 +197,16 @@ export default function TeamSelection() {
             {franchises.map((team, idx) => {
               const logo = resolveLogo(team.shortName, team.logo);
               return (
-                <motion.div
+                <motion.button
+                  type="button"
+                  aria-pressed={selectedId === team.id}
                   key={team.id}
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.03 }}
                   onClick={() => setSelectedId(team.id)}
                   className={cn(
-                    "glass-card relative rounded-2xl border-2 transition-all duration-200 cursor-pointer overflow-hidden group p-5 flex flex-col items-center justify-between shadow-lg",
+                    "glass-card relative min-h-[170px] w-full rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer overflow-hidden group p-4 sm:p-5 flex flex-col items-center justify-between shadow-lg",
                     selectedId === team.id 
                       ? "border-[#258BFF] bg-gradient-to-b from-[#152C4D] to-[#10233D] ring-2 ring-blue-500/30 scale-[1.02]" 
                       : "border-white/5 bg-[#071426]/70 hover:border-white/20 hover:bg-[#10233D]/60"
@@ -228,13 +234,13 @@ export default function TeamSelection() {
                       <Check className="w-3.5 h-3.5 text-white" />
                     </div>
                   )}
-                </motion.div>
+                </motion.button>
               );
             })}
           </div>
 
           {/* Bottom CTA */}
-          <div className="glass-card rounded-2xl p-4 border border-white/10 flex items-center justify-between">
+          <div className="glass-card fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 md:sticky md:inset-auto md:bottom-4 flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-white/10 p-3 shadow-2xl sm:flex-row sm:items-center sm:p-4 md:bottom-4">
             <div className="text-xs text-[#9DAEC4] font-medium">
               {selectedId ? (
                 <span>Selected: <strong className="text-white font-bold">{selectedFranchise?.name}</strong></span>

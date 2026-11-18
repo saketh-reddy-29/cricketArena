@@ -1,5 +1,6 @@
 import { Player } from '../types/common';
 import { Franchise } from '../stores/useGameStore';
+import { getIPLCareerStats } from '../data/iplCareerStats';
 
 /**
  * IPL Auction Raise Engine & Bid Increments
@@ -62,6 +63,80 @@ export function calculateAIBaseValuation(rating: number): number {
   }
 }
 
+export interface PlayerAuctionProfile {
+  /** Maximum of recorded IPL batting and bowling innings; this is not a match count. */
+  experienceSample: number;
+  hasPerformanceData: boolean;
+  isProven: boolean;
+  performanceScore: number;
+  nominationScore: number;
+  maxBidCap: number;
+}
+
+/**
+ * Uses the attributed IPL career dataset through 2025. It intentionally does not use
+ * international-career fields as if they were IPL records, and never labels innings as matches.
+ */
+export function getPlayerAuctionProfile(player: Player): PlayerAuctionProfile {
+  const career = getIPLCareerStats(player.name);
+  const battingInnings = career?.battingInnings ?? 0;
+  const bowlingInnings = career?.bowlingInnings ?? 0;
+  const experienceSample = Math.max(battingInnings, bowlingInnings);
+  const runs = career?.runs ?? 0;
+  const wickets = career?.wickets ?? 0;
+  const strikeRate = career?.strikeRate ?? 0;
+  const economy = career?.economy ?? 0;
+  const hasPerformanceData = Boolean(career && experienceSample > 0 && (runs > 0 || wickets > 0 || strikeRate > 0 || economy > 0));
+
+  const rating = Math.max(50, Math.min(100, player.rating || player.baseAbility || 75));
+  const form = Math.max(0, Math.min(100, player.form === undefined ? 70 : player.form));
+  const batting = Math.max(0, Math.min(100, player.stats ? player.stats.batting : rating));
+  const bowling = Math.max(0, Math.min(100, player.stats ? player.stats.bowling : rating));
+  const fielding = Math.max(0, Math.min(100, player.stats ? player.stats.fielding : rating));
+  const roleSkill = player.role === 'Bowler' ? bowling : player.role === 'All-rounder' ? (batting + bowling) / 2 : batting;
+  const abilityScore = rating * 0.42 + roleSkill * 0.38 + form * 0.12 + fielding * 0.08;
+  let statisticalScore = abilityScore;
+
+  if (hasPerformanceData && career) {
+    if (player.role === 'Bowler') {
+      const wicketRate = bowlingInnings > 0 ? Math.min(100, (wickets / bowlingInnings) * 100) : abilityScore;
+      const economyScore = economy > 0 ? Math.max(0, Math.min(100, (11 - economy) * 18)) : abilityScore;
+      statisticalScore = wicketRate * 0.55 + economyScore * 0.45;
+    } else if (player.role === 'All-rounder') {
+      const battingRate = battingInnings > 0 ? Math.min(100, (runs / battingInnings) * 2.2) : abilityScore;
+      const bowlingRate = bowlingInnings > 0 ? Math.min(100, (wickets / bowlingInnings) * 100) : abilityScore;
+      statisticalScore = battingRate * 0.32 + bowlingRate * 0.32 + abilityScore * 0.36;
+    } else {
+      const runsScore = battingInnings > 0 ? Math.min(100, (runs / battingInnings) * 2.2) : abilityScore;
+      const strikeScore = strikeRate > 0 ? Math.max(0, Math.min(100, (strikeRate - 70) * 1.35)) : runsScore;
+      statisticalScore = runsScore * 0.58 + strikeScore * 0.42;
+    }
+  }
+
+  const performanceScore = Math.round(Math.max(0, Math.min(100, hasPerformanceData
+    ? statisticalScore * 0.62 + abilityScore * 0.38
+    : abilityScore)));
+  const isProven = experienceSample >= 12 && hasPerformanceData;
+
+  // Ceilings are based on real IPL innings evidence, not a fabricated appearances count.
+  let cap = 15_000_000;
+  if (experienceSample >= 80 && isProven && performanceScore >= 88) cap = 250_000_000;
+  else if (experienceSample >= 50 && isProven && performanceScore >= 85) cap = 180_000_000;
+  else if (experienceSample >= 24 && isProven && performanceScore >= 80) cap = 140_000_000;
+  else if (experienceSample >= 12) cap = 90_000_000;
+  else if (experienceSample >= 1) cap = 60_000_000;
+  else if (rating >= 90) cap = 45_000_000;
+  else if (rating >= 82) cap = 25_000_000;
+
+  const maxBidCap = Math.max(player.basePrice || 2_000_000, cap);
+  const nominationScore = performanceScore * 100 + rating * 10 + Math.min(experienceSample, 100) * 3 + (isProven ? 1_000 : 0);
+  return { experienceSample, hasPerformanceData, isProven, performanceScore, nominationScore, maxBidCap };
+}
+
+export function getAuctionNominationScore(player: Player): number {
+  return getPlayerAuctionProfile(player).nominationScore;
+}
+
 /**
  * Simple deterministic pseudo-random variance between 0.85 and 1.15 (±15%)
  * Consistent for a given player and franchise so AI decisions are stable across counter-bids.
@@ -88,11 +163,13 @@ export function calculateAIMaxWillingToPay(
   poolIndex = 0,
   totalPool = 100
 ): number {
-  const rating = player.rating || (player as any).baseAbility || 75;
+  const profile = getPlayerAuctionProfile(player);
+  const rating = player.rating || player.baseAbility || 75;
   const baseValuation = calculateAIBaseValuation(rating);
   const variance = getPseudoVariance(player.id, franchise.id);
 
-  let valuation = baseValuation * variance;
+  // Overall rating creates interest, while recorded experience/performance controls the ceiling.
+  let valuation = Math.min(baseValuation * variance, profile.maxBidCap);
 
   // Role need analysis
   const squadPlayers = franchise.squad
@@ -118,7 +195,7 @@ export function calculateAIMaxWillingToPay(
 
   // Minimum floor is player's base price
   const basePrice = player.basePrice || player.price || 2_000_000;
-  return Math.max(basePrice, Math.round(valuation));
+  return Math.min(profile.maxBidCap, Math.max(basePrice, Math.round(valuation)));
 }
 
 /**

@@ -7,6 +7,8 @@ import { getFormatSpecificProfile, getPlayerRating, getPlayerForm } from '../lib
 import { useGameStore, ArenaFormat } from '../stores/useGameStore';
 import { cn } from '../lib/utils';
 import { BatterScoringMemory, CANONICAL_ZONES, CANONICAL_ZONE_LIST } from '../engine/analytics/BatterScoringMemory';
+import { getIPLCareerStats, IPL_CAREER_STATS_SOURCE } from '../data/iplCareerStats';
+import { getOfficialIPL2026Highlight, OFFICIAL_IPL_2026_SOURCE } from '../data/ipl2026OfficialHighlights';
 
 type ProfileTab = 
   | 'OVERVIEW' 
@@ -60,6 +62,8 @@ export default function PlayerProfileModal({ player, franchiseId, onClose }: Pla
 
   const isTest = activeFormat === 'TEST';
   const recentMatches = playerState?.recentMatches || [];
+  const iplCareer = getIPLCareerStats(player.name);
+  const official2026 = getOfficialIPL2026Highlight(player.name);
 
   const scoringProfile = player ? BatterScoringMemory.getBatterProfile(player.id, {
     format: zoneFormat,
@@ -427,17 +431,104 @@ export default function PlayerProfileModal({ player, franchiseId, onClose }: Pla
             )}
 
             {activeTab === 'CAREER' && (
-              <div className="bg-[#101a2e] p-4 rounded-2xl border border-white/5 space-y-2">
-                <h4 className="text-xs font-black uppercase text-cyan-400 tracking-wider mb-2">Arena Career Statistics ({activeFormat})</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-                  <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Matches</div><div className="font-bold">{playerState?.careerStats?.matches || 0}</div></div>
-                  <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Runs</div><div className="font-bold">{playerState?.careerStats?.runs || 0}</div></div>
-                  <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Wickets</div><div className="font-bold">{playerState?.careerStats?.wickets || 0}</div></div>
-                  <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Highest</div><div className="font-bold">{playerState?.careerStats?.highestScore || 0}</div></div>
-                  <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">50s / 100s</div><div className="font-bold">{playerState?.careerStats?.fifties || 0} / {playerState?.careerStats?.hundreds || 0}</div></div>
-                  <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Best Bowling</div><div className="font-bold">{playerState?.careerStats?.bestBowling || '0/0'}</div></div>
-                  <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">4s / 6s</div><div className="font-bold">{playerState?.careerStats?.fours || 0} / {playerState?.careerStats?.sixes || 0}</div></div>
-                  <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Catches</div><div className="font-bold">{playerState?.careerStats?.catches || 0}</div></div>
+              <div className="space-y-3">
+                {official2026 && (
+                  <div className="bg-gradient-to-br from-amber-500/10 to-[#101a2e] p-4 rounded-2xl border border-amber-400/25 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-xs font-black uppercase text-amber-200 tracking-wider">Official IPL 2026 Season Highlight</h4>
+                        <p className="mt-1 text-[10px] text-white/45">{official2026.award}</p>
+                      </div>
+                      <span className="rounded-lg border border-amber-300/20 bg-amber-300/10 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-amber-100">2026</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                      {[
+                        ...(official2026.matches !== undefined ? [['Matches', official2026.matches] as [string, string | number]] : []),
+                        ...(official2026.runs !== undefined ? [['Runs', official2026.runs] as [string, string | number]] : []),
+                        ...(official2026.battingAverage !== undefined ? [['Average', official2026.battingAverage] as [string, string | number]] : []),
+                        ...(official2026.highestScore !== undefined ? [['Highest score', official2026.highestScore] as [string, string | number]] : []),
+                        ...(official2026.highestScoreStrikeRate !== undefined ? [['HS strike rate', official2026.highestScoreStrikeRate] as [string, string | number]] : []),
+                        ...(official2026.wickets !== undefined ? [['Wickets', official2026.wickets] as [string, string | number]] : []),
+                        ...(official2026.bestBowling ? [['Best bowling', official2026.bestBowling] as [string, string | number]] : []),
+                        ...(official2026.dotBalls !== undefined ? [['Dot balls', official2026.dotBalls] as [string, string | number]] : []),
+                      ].map(([label, value]) => (
+                        <div key={label} className="bg-black/30 p-2 rounded-lg">
+                          <div className="text-[9px] text-white/40">{label}</div>
+                          <div className="font-bold text-white">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {official2026.highestScoreOpponent && (
+                      <p className="text-[10px] text-white/50">Highest score was against {official2026.highestScoreOpponent}.</p>
+                    )}
+                    <p className="text-[9px] leading-4 text-white/35">
+                      Selected leaderboard figures from {OFFICIAL_IPL_2026_SOURCE.title}.{' '}
+                      <a href={OFFICIAL_IPL_2026_SOURCE.url} target="_blank" rel="noreferrer" className="text-cyan-300 underline underline-offset-2">Official IPL source</a>
+                    </p>
+                  </div>
+                )}
+                <div className="bg-[#101a2e] p-4 rounded-2xl border border-white/5 space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-black uppercase text-amber-300 tracking-wider">Real IPL Career Records</h4>
+                      <p className="mt-1 text-[10px] text-white/45">
+                        {iplCareer ? `${iplCareer.debutYear}–${iplCareer.lastYear} · ${iplCareer.seasonsPlayed} seasons` : 'No matching IPL record in the 2008–2025 dataset'}
+                      </p>
+                    </div>
+                    <span className="rounded-lg border border-amber-400/20 bg-amber-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-amber-200">
+                      Source data · 2025 cutoff
+                    </span>
+                  </div>
+                  {iplCareer ? (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                        {[
+                          ['Batting inns', iplCareer.battingInnings],
+                          ['Runs', iplCareer.runs],
+                          ['Average', iplCareer.battingAverage === null ? '—' : iplCareer.battingAverage],
+                          ['Strike rate', iplCareer.strikeRate === null ? '—' : iplCareer.strikeRate],
+                          ['Highest', iplCareer.highestScore],
+                          ['50s / 100s', `${iplCareer.fifties} / ${iplCareer.hundreds}`],
+                          ['4s / 6s', `${iplCareer.fours} / ${iplCareer.sixes}`],
+                          ['Bowling inns', iplCareer.bowlingInnings],
+                          ['Wickets', iplCareer.wickets],
+                          ['Economy', iplCareer.economy === null ? '—' : iplCareer.economy],
+                          ['Bowl average', iplCareer.bowlingAverage === null ? '—' : iplCareer.bowlingAverage],
+                          ['Bowl strike rate', iplCareer.bowlingStrikeRate === null ? '—' : iplCareer.bowlingStrikeRate],
+                        ].map(([label, value]) => (
+                          <div key={String(label)} className="bg-black/30 p-2 rounded-lg">
+                            <div className="text-[9px] text-white/40">{label}</div>
+                            <div className="font-bold text-white">{value}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="text-[10px] leading-5 text-white/45">
+                        IPL teams represented: {iplCareer.teams.join(', ') || 'Not listed'}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-white/5 bg-black/20 px-4 py-5 text-center text-xs text-white/50">
+                      This player has no matched IPL career record in the bundled source. Zero values are not fabricated.
+                    </div>
+                  )}
+                  <p className="text-[9px] leading-4 text-white/35">
+                    Batting and bowling innings are shown separately; they are not match appearances. Data: {IPL_CAREER_STATS_SOURCE.title}, through 2025. Attribution: {IPL_CAREER_STATS_SOURCE.attribution} · CC BY 4.0.
+                    {' '}<a href={IPL_CAREER_STATS_SOURCE.url} target="_blank" rel="noreferrer" className="text-cyan-300 underline underline-offset-2">Source and licence</a>
+                  </p>
+                </div>
+
+                <div className="bg-[#101a2e] p-4 rounded-2xl border border-white/5 space-y-2">
+                  <h4 className="text-xs font-black uppercase text-cyan-400 tracking-wider mb-2">Cricket Arena Save Statistics ({activeFormat})</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                    <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Matches</div><div className="font-bold">{playerState?.careerStats?.matches || 0}</div></div>
+                    <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Runs</div><div className="font-bold">{playerState?.careerStats?.runs || 0}</div></div>
+                    <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Wickets</div><div className="font-bold">{playerState?.careerStats?.wickets || 0}</div></div>
+                    <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Highest</div><div className="font-bold">{playerState?.careerStats?.highestScore || 0}</div></div>
+                    <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">50s / 100s</div><div className="font-bold">{playerState?.careerStats?.fifties || 0} / {playerState?.careerStats?.hundreds || 0}</div></div>
+                    <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Best Bowling</div><div className="font-bold">{playerState?.careerStats?.bestBowling || '0/0'}</div></div>
+                    <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">4s / 6s</div><div className="font-bold">{playerState?.careerStats?.fours || 0} / {playerState?.careerStats?.sixes || 0}</div></div>
+                    <div className="bg-black/30 p-2 rounded-lg"><div className="text-[9px] text-white/40">Catches</div><div className="font-bold">{playerState?.careerStats?.catches || 0}</div></div>
+                  </div>
                 </div>
               </div>
             )}

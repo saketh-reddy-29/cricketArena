@@ -204,16 +204,16 @@ function FranchiseDesk({
   // 2. Center aisle (x = -1.2 to +1.2) is open so Auctioneer is 100% visible.
   // 3. Front row delegates never block the back row desks!
   const deskLayout: Record<number, { x: number; y: number; z: number; yaw: number }> = {
-    0: { x: -4.3, y: 0.42, z: 4.3, yaw: 0.14 },
+    0: { x: -4.7, y: 0.42, z: 4.3, yaw: 0.14 },
     1: { x: -2.8, y: 0.42, z: 4.15, yaw: 0.09 },
-    2: { x: -1.3, y: 0.42, z: 4.0, yaw: 0.04 },
-    3: { x: -3.55, y: 0.0, z: 7.1, yaw: 0.11 },
-    4: { x: -2.05, y: 0.0, z: 6.9, yaw: 0.06 },
-    5: { x: 1.3, y: 0.42, z: 4.0, yaw: -0.04 },
+    2: { x: -0.9, y: 0.42, z: 4.0, yaw: 0.04 },
+    3: { x: -3.8, y: 0.0, z: 7.1, yaw: 0.11 },
+    4: { x: -1.9, y: 0.0, z: 6.9, yaw: 0.06 },
+    5: { x: 0.9, y: 0.42, z: 4.0, yaw: -0.04 },
     6: { x: 2.8, y: 0.42, z: 4.15, yaw: -0.09 },
-    7: { x: 4.3, y: 0.42, z: 4.3, yaw: -0.14 },
-    8: { x: 2.05, y: 0.0, z: 6.9, yaw: -0.06 },
-    9: { x: 3.55, y: 0.0, z: 7.1, yaw: -0.11 },
+    7: { x: 4.7, y: 0.42, z: 4.3, yaw: -0.14 },
+    8: { x: 1.9, y: 0.0, z: 6.9, yaw: -0.06 },
+    9: { x: 3.8, y: 0.0, z: 7.1, yaw: -0.11 },
   };
 
   const pos = deskLayout[index] || { x: (index - 4.5) * 1.8, y: 0, z: 5.5, yaw: 0 };
@@ -243,7 +243,7 @@ function FranchiseDesk({
 
       {/* Main Desk Tabletop (Height 0.72m, width 1.65m) */}
       <mesh position={[0, 0.72, 0]}>
-        <boxGeometry args={[1.65, 0.07, 0.85]} />
+        <boxGeometry args={[1.52, 0.07, 0.85]} />
         <meshStandardMaterial
           color="#152642"
           roughness={0.4}
@@ -255,7 +255,7 @@ function FranchiseDesk({
 
       {/* Desk Front Branding Plate with Team Name & Purse texture (No HTML tags!) */}
       <mesh position={[0, 0.35, 0.43]}>
-        <planeGeometry args={[1.56, 0.54]} />
+        <planeGeometry args={[1.38, 0.54]} />
         {deskTexture ? (
           <meshStandardMaterial map={deskTexture} roughness={0.3} metalness={0.2} />
         ) : (
@@ -265,18 +265,18 @@ function FranchiseDesk({
 
       {/* Glowing Edge Border Frame around Front Plate */}
       <mesh position={[0, 0.35, 0.415]}>
-        <boxGeometry args={[1.62, 0.58, 0.02]} />
+        <boxGeometry args={[1.44, 0.58, 0.02]} />
         <meshBasicMaterial color={leading ? '#f5b82e' : selected ? '#38bdf8' : team.color || '#3b82f6'} />
       </mesh>
 
       {/* Desk Top Accent Line */}
       <mesh position={[0, 0.74, 0.43]}>
-        <boxGeometry args={[1.66, 0.025, 0.03]} />
+        <boxGeometry args={[1.54, 0.025, 0.03]} />
         <meshBasicMaterial color={leading ? '#f5b82e' : team.color || '#3b82f6'} />
       </mesh>
 
       {/* Desk Legs */}
-      {[-0.75, 0.75].map((lx) => (
+      {[-0.68, 0.68].map((lx) => (
         <group key={lx} position={[lx, 0.34, 0]}>
           <mesh position={[0, 0, -0.32]}>
             <cylinderGeometry args={[0.03, 0.03, 0.68, 8]} />
@@ -302,8 +302,8 @@ function FranchiseDesk({
       </group>
 
       {/* Franchise Delegate Character - Perfectly seated and visible above table */}
-      <CharacterErrorBoundary fallback={<AuctionCharacterLoading position={[0, 0.38, -0.52]} color={team.color} />}>
-        <Suspense fallback={<AuctionCharacterLoading position={[0, 0.38, -0.52]} color={team.color} />}>
+      <CharacterErrorBoundary fallback={null}>
+        <Suspense fallback={null}>
           <CharacterInstance
             modelUrl={AUCTION_CHARACTER_MODEL}
             position={[0, 0.38, -0.52]}
@@ -568,23 +568,6 @@ function AuctionScreen({
   );
 }
 
-function AuctionCharacterLoading({ position, color }: { position: [number, number] | [number, number, number]; color?: string }) {
-  const posY = position.length === 3 ? position[1] : 0;
-  const posZ = position.length === 3 ? position[2] : position[1];
-  return (
-    <group position={[position[0], posY, posZ]}>
-      <mesh position={[0, 0.72, 0]}>
-        <cylinderGeometry args={[0.2, 0.25, 0.85, 10]} />
-        <meshStandardMaterial color={color || '#258bff'} roughness={0.7} />
-      </mesh>
-      <mesh position={[0, 1.36, 0]}>
-        <sphereGeometry args={[0.19, 12, 10]} />
-        <meshStandardMaterial color="#d6b49a" roughness={0.88} />
-      </mesh>
-    </group>
-  );
-}
-
 function AuctionRoomScene(props: AuctionBroadcastStageProps) {
   const { franchises, leadingTeamId, selectedTeamId, player, playerImage, currentBid, phase, timer } = props;
   const leadingTeam = franchises.find((team) => team.id === leadingTeamId);
@@ -622,7 +605,7 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
       {/* Left & Right Wing Tiered Risers (Elevation y = 0.42m for Back Row Desks) */}
       <group position={[-2.8, 0.21, 4.15]}>
         <mesh>
-          <boxGeometry args={[4.8, 0.42, 2.2]} />
+          <boxGeometry args={[5.2, 0.42, 2.2]} />
           <meshStandardMaterial color="#0b1b38" roughness={0.5} metalness={0.3} />
         </mesh>
         <mesh position={[0, 0.21, 1.11]}>
@@ -714,8 +697,8 @@ function AuctionRoomScene(props: AuctionBroadcastStageProps) {
       </group>
 
       {/* Auctioneer 3D Character - Elevated at y=0.76 on dais, tall commanding stature, completely unobstructed */}
-      <CharacterErrorBoundary fallback={<AuctionCharacterLoading position={[0, 0.76, 0.0]} color="#f5b82e" />}>
-        <Suspense fallback={<AuctionCharacterLoading position={[0, 0.76, 0.0]} color="#f5b82e" />}>
+      <CharacterErrorBoundary fallback={null}>
+        <Suspense fallback={null}>
           <CharacterInstance
             modelUrl={AUCTION_CHARACTER_MODEL}
             position={[0, 0.76, 0.0]}

@@ -1,91 +1,97 @@
 import React from 'react';
 import { useGameStore, GameState, ArenaTab } from '../stores/useGameStore';
 import { ArrowLeft } from 'lucide-react';
-import ArenaDashboard from './ArenaDashboard';
-import ScheduleTab from './league/ScheduleTab';
-import SeriesTab from './league/SeriesTab';
-import LeaderboardTab from './league/LeaderboardTab';
-import QualificationTab from './league/QualificationTab';
-import SquadPlanner from './SquadPlanner';
-import AuctionRoom from './AuctionRoom';
-import PlayerStatsView from './stats/PlayerStatsView';
-import TeamStatsView from './stats/TeamStatsView';
-import TopMatchesCarousel from './TopMatchesCarousel';
-import GlobalNavBar from './common/GlobalNavBar';
-import FieldSetupDashboard from './FieldSetupDashboard';
-import MatchRecoveryBanner from './common/MatchRecoveryBanner';
 import { cn } from '../lib/utils';
 
+// Career panels are loaded only when the player opens them. This also keeps
+// the default overview from pulling in auction, squad and analytics screens.
+const ArenaDashboard = React.lazy(() => import('./ArenaDashboard'));
+const ScheduleTab = React.lazy(() => import('./league/ScheduleTab'));
+const SeriesTab = React.lazy(() => import('./league/SeriesTab'));
+const LeaderboardTab = React.lazy(() => import('./league/LeaderboardTab'));
+const QualificationTab = React.lazy(() => import('./league/QualificationTab'));
+const SquadPlanner = React.lazy(() => import('./SquadPlanner'));
+const AuctionRoom = React.lazy(() => import('./AuctionRoom'));
+const PlayerStatsView = React.lazy(() => import('./stats/PlayerStatsView'));
+const TeamStatsView = React.lazy(() => import('./stats/TeamStatsView'));
+const TopMatchesCarousel = React.lazy(() => import('./TopMatchesCarousel'));
+const FieldSetupDashboard = React.lazy(() => import('./FieldSetupDashboard'));
+const MatchRecoveryBanner = React.lazy(() => import('./common/MatchRecoveryBanner'));
+
+function PanelLoading() {
+  return (
+    <div className="grid min-h-[30vh] place-items-center rounded-2xl border border-white/5 bg-[#0B1A2E]/50 p-8">
+      <div className="flex items-center gap-3 text-xs font-semibold text-[#9DAEC4]" role="status">
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/10 border-t-[#F5B82E]" />
+        Loading career panel
+      </div>
+    </div>
+  );
+}
+
 export default function ArenaHub() {
-  const { 
-    selectedFormat, 
-    activeTab, 
-    setActiveTab, 
+  const {
+    selectedFormat,
+    activeTab,
+    setActiveTab,
     setGameState,
     franchises,
     selectedFranchiseId,
     liveMatchState,
   } = useGameStore();
 
-  const team = franchises.find(f => f.id === selectedFranchiseId);
+  const team = franchises.find(franchise => franchise.id === selectedFranchiseId);
 
-  // Derive live context from persisted match state for FieldSetupDashboard
   const liveCtx = React.useMemo(() => {
     const ls = liveMatchState ?? {};
     return {
-      isSpinner:        ls.currentBowlerIsSpin    ?? false,
-      isLeftHander:     ls.strikerIsLeftHand       ?? false,
-      wickets:          ls.wickets                  ?? 0,
-      partnershipRuns:  ls.partnershipRuns          ?? 0,
-      batterId:         ls.strikerId                ?? undefined,
-      batterStyle:      ls.strikerStyle              ?? undefined,
+      isSpinner: ls.currentBowlerIsSpin ?? false,
+      isLeftHander: ls.strikerIsLeftHand ?? false,
+      wickets: ls.wickets ?? 0,
+      partnershipRuns: ls.partnershipRuns ?? 0,
+      batterId: ls.strikerId ?? undefined,
+      batterStyle: ls.strikerStyle ?? undefined,
       highRequiredRate: ls.requiredRate && ls.currentRunRate
-                          ? ls.requiredRate > ls.currentRunRate + 2
-                          : false,
-      bowlerName:       ls.currentBowlerName        ?? undefined,
-      batterName:       ls.strikerName              ?? undefined,
+        ? ls.requiredRate > ls.currentRunRate + 2
+        : false,
+      bowlerName: ls.currentBowlerName ?? undefined,
+      batterName: ls.strikerName ?? undefined,
     };
   }, [liveMatchState]);
+
   const isIPL = selectedFormat === 'IPL';
   const isTest = selectedFormat === 'TEST';
 
-  // Determine available tabs based on format
-  const getTabs = (): { id: ArenaTab; label: string }[] => {
-    const tabs: { id: ArenaTab; label: string }[] = [
-      { id: 'OVERVIEW', label: 'OVERVIEW' }
+  const tabs = React.useMemo((): { id: ArenaTab; label: string; group: 'manage' | 'insights' }[] => {
+    const items: { id: ArenaTab; label: string; group: 'manage' | 'insights' }[] = [
+      { id: 'OVERVIEW', label: 'Overview', group: 'manage' },
     ];
 
     if (isIPL) {
-      tabs.push({ id: 'AUCTION', label: 'AUCTION' });
-      tabs.push({ id: 'SQUAD', label: 'SQUAD' });
-      tabs.push({ id: 'MATCHES', label: 'MATCHES' });
-      tabs.push({ id: 'TABLE', label: 'TABLE' });
-      tabs.push({ id: 'PLAYOFFS', label: 'PLAYOFFS' });
-    } else if (isTest) {
-      tabs.push({ id: 'SERIES', label: 'SERIES' });
-      tabs.push({ id: 'SQUAD', label: 'SQUAD' });
-      tabs.push({ id: 'MATCHES', label: 'MATCHES' });
-      tabs.push({ id: 'TABLE', label: 'WTC TABLE' });
+      items.push({ id: 'AUCTION', label: 'Auction', group: 'manage' });
     } else {
-      tabs.push({ id: 'SERIES', label: 'SERIES' });
-      tabs.push({ id: 'SQUAD', label: 'SQUAD' });
-      tabs.push({ id: 'MATCHES', label: 'MATCHES' });
-      tabs.push({ id: 'TABLE', label: 'TABLE' });
-      tabs.push({ id: 'PLAYOFFS', label: 'PLAYOFFS' });
+      items.push({ id: 'SERIES', label: 'Series', group: 'manage' });
     }
 
-    tabs.push({ id: 'PLAYER_STATS', label: 'PLAYER STATS' });
-    tabs.push({ id: 'TEAM_STATS', label: 'TEAM STATS' });
-    tabs.push({ id: 'FIELD_SETUP', label: '🏏 FIELD SETUP' });
+    items.push(
+      { id: 'SQUAD', label: 'Squad', group: 'manage' },
+      { id: 'MATCHES', label: 'Fixtures', group: 'manage' },
+      { id: 'TABLE', label: isTest ? 'WTC Table' : 'Standings', group: 'manage' }
+    );
 
-    return tabs;
-  };
+    if (!isTest) items.push({ id: 'PLAYOFFS', label: 'Playoffs', group: 'insights' });
 
-  const tabs = getTabs();
+    items.push(
+      { id: 'PLAYER_STATS', label: 'Player Stats', group: 'insights' },
+      { id: 'TEAM_STATS', label: 'Team Stats', group: 'insights' },
+      { id: 'FIELD_SETUP', label: 'Field Tactics', group: 'insights' }
+    );
 
-  // If the current tab isn't valid for the format, fallback to OVERVIEW
+    return items;
+  }, [isIPL, isTest]);
+
   React.useEffect(() => {
-    if (!tabs.find(t => t.id === activeTab)) {
+    if (!tabs.some(tab => tab.id === activeTab)) {
       setActiveTab('OVERVIEW');
     }
   }, [activeTab, tabs, setActiveTab]);
@@ -100,13 +106,13 @@ export default function ArenaHub() {
         return <AuctionRoom />;
       case 'MATCHES':
         return (
-          <div className="p-4 sm:p-6 max-w-6xl mx-auto">
+          <div className="mx-auto w-full max-w-[1440px] px-1 py-4 sm:px-4 sm:py-6">
             <ScheduleTab franchises={franchises} />
           </div>
         );
       case 'SERIES':
         return (
-          <div className="p-4 sm:p-6 max-w-6xl mx-auto">
+          <div className="mx-auto w-full max-w-[1440px] px-1 py-4 sm:px-4 sm:py-6">
             <SeriesTab franchises={franchises} />
           </div>
         );
@@ -114,7 +120,7 @@ export default function ArenaHub() {
         return <QualificationTab />;
       case 'TABLE':
         return (
-          <div className="p-4 sm:p-6 max-w-6xl mx-auto">
+          <div className="mx-auto w-full max-w-[1440px] px-1 py-4 sm:px-4 sm:py-6">
             <LeaderboardTab franchises={franchises} />
           </div>
         );
@@ -142,75 +148,85 @@ export default function ArenaHub() {
   if (!team) return null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#071426] text-[#F6F8FC] font-sans overflow-hidden">
-      
-      {/* Global Navigation Bar */}
-      <GlobalNavBar />
-
-      {/* Top Header */}
-      <header className="bg-[#0D1C32] border-b border-white/10 shrink-0 shadow-lg z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            
-            {/* Context & Back */}
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setGameState(GameState.LANDING)}
-                className="w-8 h-8 rounded-full bg-[#10233D] border border-white/10 flex items-center justify-center hover:bg-[#152C4D] transition-colors shrink-0 text-[#9DAEC4] hover:text-white"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-[#258BFF] bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded">
-                    {selectedFormat} 2026
+    <div className="mx-auto flex min-h-[calc(100vh-150px)] w-full max-w-[1720px] flex-col text-[#F6F8FC]">
+      <section className="mb-4 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-[#102947] via-[#0D1C32] to-[#0B1A2E] shadow-xl">
+        <div className="flex flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setGameState(GameState.LANDING)}
+              aria-label="Back to home"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-[#9DAEC4] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F5B82E]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#071426]/70 p-2">
+                <img src={team.logo} alt={team.name} className="h-full w-full object-contain" loading="lazy" decoding="async" />
+              </div>
+              <div className="min-w-0">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <span className="rounded-md border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.15em] text-blue-300">
+                    {selectedFormat || 'Cricket'} career
                   </span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">LIVE ARENA</span>
+                  {isIPL && <span className="text-[9px] font-bold uppercase tracking-wider text-amber-300">Franchise mode</span>}
+                  {!isIPL && <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300">International mode</span>}
                 </div>
-                <h1 className="text-base font-black tracking-tight text-[#F6F8FC]">{team.name}</h1>
+                <h1 className="truncate text-lg font-black tracking-tight text-white sm:text-xl">{team.name}</h1>
               </div>
             </div>
+          </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 sm:pb-0 hide-scrollbar-sm">
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      "px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide rounded-full whitespace-nowrap transition-all duration-200 shrink-0",
-                      isActive 
-                        ? "bg-[#258BFF] text-white shadow-md shadow-blue-500/20" 
-                        : "text-[#9DAEC4] hover:text-white bg-[#10233D] hover:bg-[#152C4D] border border-white/5"
-                    )}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <div className="rounded-xl border border-white/10 bg-[#071426]/45 px-3 py-2">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-[#7890AE]">Squad</div>
+              <div className="text-sm font-black text-white">{team.squad.length} <span className="text-[10px] font-semibold text-[#9DAEC4]">players</span></div>
             </div>
-
+            <div className="rounded-xl border border-white/10 bg-[#071426]/45 px-3 py-2">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-[#7890AE]">Remaining purse</div>
+              <div className="text-sm font-black text-amber-300">₹{(team.purse / 10000000).toFixed(1)} Cr</div>
+            </div>
           </div>
         </div>
-      </header>
 
-      {/* Top Matches Carousel */}
-      <TopMatchesCarousel />
+        <div className="border-t border-white/5 px-2 py-2 sm:px-4">
+          <nav aria-label="Career sections" className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+            {tabs.map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={cn(
+                    'relative shrink-0 rounded-lg px-3 py-2 text-[10px] font-bold transition-colors sm:px-4 sm:text-[11px]',
+                    isActive
+                      ? 'bg-[#258BFF] text-white shadow-md shadow-blue-500/20'
+                      : 'text-[#9DAEC4] hover:bg-white/5 hover:text-white'
+                  )}
+                >
+                  {tab.label}
+                  {isActive && <span className="absolute inset-x-3 -bottom-0.5 h-0.5 rounded-full bg-[#F5B82E]" />}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </section>
 
-      {/* Match Recovery Banner for in-progress games */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 w-full">
-        <MatchRecoveryBanner />
+      <div className="mb-3">
+        <React.Suspense fallback={null}>
+          <TopMatchesCarousel />
+          <MatchRecoveryBanner />
+        </React.Suspense>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-        {renderContent()}
-      </div>
-
+      <main className="min-w-0 flex-1">
+        <React.Suspense fallback={<PanelLoading />}>
+          {renderContent()}
+        </React.Suspense>
+      </main>
     </div>
   );
 }
-

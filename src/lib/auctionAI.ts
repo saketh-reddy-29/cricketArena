@@ -11,6 +11,7 @@ import { getMemoryFactors } from './auction-engine/AuctionMemory';
 import { calculateConfidence } from './auction-engine/ConfidenceEngine';
 import { calculateBidStrategy } from './auction-engine/BidStrategy';
 import { getHumanLikeBidDelay, TimingContext } from './auction-engine/TimingEngine';
+import { getPlayerAuctionProfile } from './iplAuctionEngine';
 
 export interface AuctionState {
   poolIndex: number;
@@ -64,7 +65,11 @@ export function evaluateBid(
   // 3. Scouting & Market Dynamics
   const scoutedRating = getHiddenRating(player, franchise, dna);
   const marketDynamics = evaluateMarket(player, auctionState);
-  const dynamicMarketValue = getDynamicMarketValue(player, scoutedRating, auctionState, marketDynamics.inflationMultiplier);
+  const auctionProfile = getPlayerAuctionProfile(player);
+  const dynamicMarketValue = Math.min(
+    getDynamicMarketValue(player, scoutedRating, auctionState, marketDynamics.inflationMultiplier),
+    auctionProfile.maxBidCap
+  );
   
   // 4. Calculate Confidence (Probability to bid)
   const confidence = calculateConfidence(
@@ -85,7 +90,8 @@ export function evaluateBid(
     franchise,
     dna,
     currentBid,
-    confidence
+    confidence,
+    auctionProfile.maxBidCap
   );
 
   return {

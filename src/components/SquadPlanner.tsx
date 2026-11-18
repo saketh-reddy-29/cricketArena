@@ -30,12 +30,13 @@ export default function SquadPlanner() {
     );
   }
 
-  const squadPlayers = franchise.squad.map(id => players.find(p => p.id === id)).filter(Boolean);
+  const squadPlayers = Array.from(new Set(franchise.squad)).map(id => players.find(p => p.id === id)).filter(Boolean);
   
   const filteredAvailablePlayers = players.filter(player => {
     const matchesSearch = player.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === 'All' || player.role === roleFilter;
-    const notInSquad = !franchise.squad.includes(player.id);
+    const assignedToAnotherTeam = franchises.some((team) => team.id !== franchise.id && team.squad.includes(player.id));
+    const notInSquad = !franchise.squad.includes(player.id) && !assignedToAnotherTeam;
     return matchesSearch && matchesRole && notInSquad;
   }).sort((a, b) => {
     if (sortBy === 'rating') return b.rating - a.rating;
@@ -223,6 +224,9 @@ export default function SquadPlanner() {
                                 </button>
                               )}
                               <button 
+                                type="button"
+                                title="Release player from squad and refund the auction price when applicable"
+                                aria-label={`Release ${player!.name} from squad`}
                                 onClick={() => {
                                   removeFromSquad(selectedFranchiseId!, player!.id);
                                   setPlayingXI(prev => prev.filter(x => x !== player!.id));

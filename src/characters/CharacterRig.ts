@@ -63,6 +63,46 @@ interface CharacterRigBlueprint {
 // GLTFLoader caches the source scene by URL. Rest-pose measurements and the solver
 // are identical between players, so compute the blueprint once and clone only the
 // independently animated skinned scene for each character.
+function isHeadDominantMesh(mesh: THREE.SkinnedMesh): boolean {
+  const meshName = (mesh.name || '').toLowerCase();
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  const materialNames = materials.map((material) => (material.name || '').toLowerCase()).join(' ');
+  if (/(hair|eyebrow|eyelash|eye|helmet|grille)/.test(meshName) || /(hair|eyebrow|eyelash|eye|helmet|grille)/.test(materialNames)) return false;
+  if (/(head|face|skin)/.test(meshName) || /(head|face|skin)/.test(materialNames)) return true;
+  const names = mesh.skeleton.bones.map((bone) => (bone.name || '').toLowerCase());
+  const headIndexes = new Set<number>();
+  names.forEach((name, index) => { if (name.includes('head') || name.includes('face')) headIndexes.add(index); });
+  if (!headIndexes.size) return false;
+  const skinIndex = mesh.geometry.attributes.skinIndex;
+  const skinWeight = mesh.geometry.attributes.skinWeight;
+  if (!skinIndex || !skinWeight) return false;
+  let totalWeight = 0;
+  let headWeight = 0;
+  for (let i = 0; i < skinIndex.count; i++) {
+    const indexes = [skinIndex.getX(i), skinIndex.getY(i), skinIndex.getZ(i), skinIndex.getW(i)];
+    const weights = [skinWeight.getX(i), skinWeight.getY(i), skinWeight.getZ(i), skinWeight.getW(i)];
+    for (let j = 0; j < 4; j++) {
+      totalWeight += weights[j];
+      if (headIndexes.has(indexes[j])) headWeight += weights[j];
+    }
+  }
+  return totalWeight > 0 && headWeight / totalWeight >= 0.58;
+}
+
+function makeHeadMaterialsOpaque(mesh: THREE.SkinnedMesh): void {
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  materials.forEach((material) => {
+    const name = (material.name || '').toLowerCase();
+    if (/(hair|eyebrow|eyelash|eye|helmet|grille)/.test(name)) return;
+    material.transparent = false;
+    material.opacity = 1;
+    material.alphaTest = 0;
+    material.depthWrite = true;
+    material.depthTest = true;
+    material.blending = THREE.NormalBlending;
+    material.needsUpdate = true;
+  });
+}
 const rigBlueprints = new WeakMap<THREE.Group, CharacterRigBlueprint>();
 
 export function buildCharacterRig(sourceScene: THREE.Group): CricketRigModel {
@@ -126,13 +166,12 @@ export function buildCharacterRig(sourceScene: THREE.Group): CricketRigModel {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       if (mesh.material) {
-        if (Array.isArray(mesh.material)) {
-          mesh.material.forEach((mat) => {
-            (mat as THREE.MeshStandardMaterial).roughness = 0.7;
-          });
-        } else {
-          (mesh.material as THREE.MeshStandardMaterial).roughness = 0.7;
-        }
+        const headDominant = isHeadDominantMesh(mesh);
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach((material) => {
+          if ('roughness' in material) (material as THREE.MeshStandardMaterial).roughness = 0.7;
+        });
+        if (headDominant) makeHeadMaterialsOpaque(mesh);
       }
     }
   });
