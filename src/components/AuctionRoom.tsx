@@ -347,7 +347,7 @@ export default function AuctionRoom() {
                 {auctionIsPaused ? <Play className="w-4 h-4 text-green-400" /> : <Pause className="w-4 h-4 text-amber-400" />}
               </button>
               <button
-                disabled={!auctionIntroComplete || auctionPhase === 'completed'}
+                disabled={auctionPhase === 'completed'}
                 onClick={skipAuction}
                 className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:pointer-events-none"
                 title="Skip bidding and load the official default franchise squads"
@@ -374,6 +374,13 @@ export default function AuctionRoom() {
               </div>
             )}
             <p className="text-xs leading-5 text-[#9DAEC4]">Bidding opens only after the 3D model is ready. The auction clock remains paused during preparation.</p>
+            <button
+              type="button"
+              onClick={skipAuction}
+              className="mt-5 w-full rounded-xl border border-amber-300/25 bg-amber-300/10 px-5 py-3 text-xs font-black uppercase tracking-wide text-amber-100 transition hover:bg-amber-300/20"
+            >
+              Skip Auction · Use Default Squads
+            </button>
           </div>
         </div>
       )}
