@@ -143,7 +143,7 @@ const PLAYER_NAME_ALIASES: Record<string, string> = {
 const canonicalPlayerName = (name: string) => PLAYER_NAME_ALIASES[name] || name;
 const normalizePlayerName = (name: string) => canonicalPlayerName(name)
   .normalize('NFKD')
-  .replace(/[\\u0300-\\u036f]/g, '')
+  .replace(/[\u0300-\u036f]/g, '')
   .toLowerCase()
   .replace(/[^a-z0-9]/g, '');
 
@@ -159,7 +159,6 @@ LEGACY_PLAYER_POOL.forEach((player) => {
 });
 export const CANONICAL_PLAYER_POOL: Player[] = Array.from(canonicalPlayersByName.values());
 const CANONICAL_PLAYER_BY_ID = new Map(CANONICAL_PLAYER_POOL.map((player) => [player.id, player]));
-const uniqueIds = (ids: string[]) => Array.from(new Set(ids.map((id) => PLAYER_ID_CANONICAL_MAP[id] || id)));
 
 function buildOfficialFranchises(players: Player[], franchises: Franchise[]) {
   const playerByName = new Map(players.map((player) => [normalizePlayerName(player.name), player]));
@@ -361,6 +360,99 @@ interface GameStore {
   loadFromCloud: () => Promise<{ success: boolean; message: string; data?: CloudSaveData }>;
   exportSaveData: () => string;
   importSaveData: (jsonStr: string) => { success: boolean; message: string };
+}
+
+
+function mergePersistedGameState(persistedState: unknown, currentState: GameStore): GameStore {
+  const saved = (persistedState || {}) as Partial<GameStore>;
+  const merged = { ...currentState, ...saved, players: CANONICAL_PLAYER_POOL } as GameStore;
+  const remap = (playerId: string) => PLAYER_ID_CANONICAL_MAP[playerId] || playerId;
+  const validIds = new Set(CANONICAL_PLAYER_POOL.map((player) => player.id));
+  const teamIds = new Set((saved.franchises || currentState.franchises).map((franchise) => franchise.id));
+
+  const ownership: Record<string, PlayerOwnershipRecord> = {};
+  Object.entries(saved.playerOwnershipMap || {}).forEach(([legacyId, record]) => {
+    const id = remap(legacyId);
+    if (!validIds.has(id)) return;
+    const previous = ownership[id];
+    if (!previous || record.status === 'RELEASED' || (previous.status !== 'RELEASED' && (record.timestamp || 0) >= (previous.timestamp || 0))) {
+      ownership[id] = { ...record };
+    }
+  });
+
+  const assignment = new Map<string, string>();
+  // A recorded SOLD owner is authoritative even if an old duplicate ID remained in another squad.
+  Object.entries(ownership).forEach(([id, record]) => {
+    if (record.status === 'SOLD' && record.teamId && teamIds.has(record.teamId) && !assignment.has(id)) {
+      assignment.set(id, record.teamId);
+    }
+  });
+
+  const savedFranchises = saved.franchises || currentState.franchises;
+  savedFranchises.forEach((franchise) => {
+    (franchise.squad || []).forEach((legacyId) => {
+      const id = remap(legacyId);
+      if (!validIds.has(id) || ownership[id]?.status === 'RELEASED' || assignment.has(id)) return;
+      const record = ownership[id];
+      const ownerTeamId = record?.status === 'SOLD' && record.teamId && teamIds.has(record.teamId)
+        ? record.teamId
+        : franchise.id;
+      assignment.set(id, ownerTeamId);
+    });
+  });
+
+  // A committed purchase must survive hydration even if an older save omitted it from squad[].
+  Object.entries(ownership).forEach(([id, record]) => {
+    if (record.status === 'SOLD' && record.teamId && teamIds.has(record.teamId) && !assignment.has(id)) {
+      assignment.set(id, record.teamId);
+    }
+  });
+
+  const franchises = savedFranchises.map((franchise) => {
+    const squad = Array.from(assignment.entries())
+      .filter(([, ownerTeamId]) => ownerTeamId === franchise.id)
+      .map(([playerId]) => playerId);
+    const overseasCount = squad.filter((id) => CANONICAL_PLAYER_BY_ID.get(id)?.nationality === 'Overseas').length;
+    return { ...franchise, squad, overseasCount };
+  });
+
+  const auctionHistoryByPlayer = new Map<string, { playerId: string; soldTo: string; price: number }>();
+  (saved.auctionHistory || currentState.auctionHistory).forEach((entry) => {
+    const id = remap(entry.playerId);
+    if (!validIds.has(id)) return;
+    const owner = ownership[id];
+    auctionHistoryByPlayer.set(id, owner?.status === 'SOLD' && owner.teamId
+      ? { ...entry, playerId: id, soldTo: owner.teamId, price: owner.price ?? entry.price }
+      : { ...entry, playerId: id });
+  });
+
+  const remapList = (ids: string[] | undefined) => Array.from(new Set((ids || [])
+    .map(remap)
+    .filter((id) => validIds.has(id))));
+  const fixturePlayingXIs = Object.fromEntries(
+    Object.entries(saved.fixturePlayingXIs || currentState.fixturePlayingXIs || {}).map(([fixtureId, xIs]) => [
+      fixtureId,
+      { team1XI: remapList(xIs.team1XI), team2XI: remapList(xIs.team2XI) },
+    ])
+  );
+
+  const auctionPool = remapList(saved.auctionPool || currentState.auctionPool);
+  const unsoldPlayerIds = remapList(saved.unsoldPlayerIds || currentState.unsoldPlayerIds)
+    .filter((id) => !assignment.has(id) && ownership[id]?.status !== 'RELEASED');
+
+  return {
+    ...merged,
+    players: CANONICAL_PLAYER_POOL,
+    franchises,
+    playerOwnershipMap: ownership,
+    auctionHistory: Array.from(auctionHistoryByPlayer.values()),
+    auctionPool,
+    currentAuctionPlayerId: merged.currentAuctionPlayerId ? remap(merged.currentAuctionPlayerId) : null,
+    unsoldPlayerIds,
+    selectedSquadIds: remapList(merged.selectedSquadIds),
+    playingXIIds: remapList(merged.playingXIIds),
+    fixturePlayingXIs,
+  };
 }
 
 export const useGameStore = create<GameStore>()(
@@ -2064,6 +2156,7 @@ export const useGameStore = create<GameStore>()(
         unsoldPlayerIds: state.unsoldPlayerIds,
         currentAuctionPlayerId: state.currentAuctionPlayerId,
       }),
+      merge: (persistedState, currentState) => mergePersistedGameState(persistedState, currentState),
       storage: {
         getItem: (name) => {
           try {
