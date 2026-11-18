@@ -344,7 +344,7 @@ export default function GlobalAppHeader() {
             {primaryNavItems.map(item => renderNavItem(item))}
           </div>
 
-          <div className="grid grid-cols-[repeat(5,minmax(0,1fr))] gap-1 md:hidden">
+          <div className="grid grid-cols-[repeat(6,minmax(0,1fr))] gap-1 md:hidden">
             {primaryNavItems.slice(0, 5).map(item => renderNavItem(item, true))}
             <button
               type="button"
