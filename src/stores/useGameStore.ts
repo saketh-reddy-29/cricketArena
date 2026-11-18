@@ -137,26 +137,50 @@ const INITIAL_FRANCHISES: Franchise[] = [
 const PLAYER_NAME_ALIASES: Record<string, string> = {
   'Ishant Kishan': 'Ishan Kishan',
   'Liam Ferguson': 'Lockie Ferguson',
-  'Mukul Choudhary': 'Mukesh Choudhary',
   'Varun Chakaravarthy': 'Varun Chakravarthy',
 };
 
 const canonicalPlayerName = (name: string) => PLAYER_NAME_ALIASES[name] || name;
+const normalizePlayerName = (name: string) => canonicalPlayerName(name)
+  .normalize('NFKD')
+  .replace(/[\\u0300-\\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, '');
+
+const LEGACY_PLAYER_POOL = [...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL];
+const canonicalPlayersByName = new Map<string, Player>();
+export const PLAYER_ID_CANONICAL_MAP: Record<string, string> = {};
+LEGACY_PLAYER_POOL.forEach((player) => {
+  const key = normalizePlayerName(player.name);
+  const existing = canonicalPlayersByName.get(key);
+  const canonical = existing || player;
+  if (!existing) canonicalPlayersByName.set(key, player);
+  PLAYER_ID_CANONICAL_MAP[player.id] = canonical.id;
+});
+export const CANONICAL_PLAYER_POOL: Player[] = Array.from(canonicalPlayersByName.values());
+const CANONICAL_PLAYER_BY_ID = new Map(CANONICAL_PLAYER_POOL.map((player) => [player.id, player]));
+const uniqueIds = (ids: string[]) => Array.from(new Set(ids.map((id) => PLAYER_ID_CANONICAL_MAP[id] || id)));
 
 function buildOfficialFranchises(players: Player[], franchises: Franchise[]) {
-  const playerByName = new Map(players.map((player) => [canonicalPlayerName(player.name).toLowerCase(), player]));
+  const playerByName = new Map(players.map((player) => [normalizePlayerName(player.name), player]));
+  const usedPlayerIds = new Set<string>();
 
   return franchises.map((franchise) => {
     const squadNames = OFFICIAL_2026_SQUADS[franchise.shortName] || [];
-    const squad = squadNames
-      .map((name) => playerByName.get(canonicalPlayerName(name).toLowerCase())?.id)
-      .filter((id): id is string => Boolean(id));
-    const overseasCount = squad.filter((id) => players.find((player) => player.id === id)?.nationality === 'Overseas').length;
-    const spend = squad.reduce((total, id) => total + (players.find((player) => player.id === id)?.basePrice || 0), 0);
+    const squad: string[] = [];
+    squadNames.forEach((name) => {
+      const id = playerByName.get(normalizePlayerName(name))?.id;
+      if (id && !usedPlayerIds.has(id)) {
+        usedPlayerIds.add(id);
+        squad.push(id);
+      }
+    });
+    const overseasCount = squad.filter((id) => CANONICAL_PLAYER_BY_ID.get(id)?.nationality === 'Overseas').length;
+    const spend = squad.reduce((total, id) => total + (CANONICAL_PLAYER_BY_ID.get(id)?.basePrice || 0), 0);
 
     return {
       ...franchise,
-      squad: Array.from(new Set(squad)),
+      squad,
       shortlist: franchise.shortlist || [],
       overseasCount,
       purse: Math.max(0, 1200000000 - spend),
@@ -170,7 +194,8 @@ export type PlayerOwnershipStatus =
   | 'SOLD'
   | 'UNSOLD'
   | 'WITHDRAWN'
-  | 'RETAINED';
+  | 'RETAINED'
+  | 'RELEASED';
 
 export interface PlayerOwnershipRecord {
   status: PlayerOwnershipStatus;
@@ -260,7 +285,8 @@ interface GameStore {
   soldPlayer: (playerId: string, franchiseId: string, price: number) => void;
   moveToUnsold: (playerId: string) => void;
   resetGame: () => void;
-  simulateFullAuction: (playerPool: Player[]) => void;
+  simulateFullAuction: (playerPool?: Player[]) => void;
+  skipAuction: () => void;
   saveLiveMatchState: (state: Record<string, any> | null) => void;
   // Match Recovery & Checkpoint Actions
   saveMatchCheckpointAction: (checkpoint: MatchCheckpoint) => Promise<boolean>;
@@ -344,7 +370,7 @@ export const useGameStore = create<GameStore>()(
       gameState: GameState.LANDING,
       selectedFormat: null,
       selectedFranchiseId: null,
-      players: [...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL],
+      players: CANONICAL_PLAYER_POOL,
       franchises: INITIAL_FRANCHISES,
       currentAuctionPlayerId: null,
       auctionHistory: [],
@@ -587,12 +613,35 @@ export const useGameStore = create<GameStore>()(
           };
         })
       })),
-      removeFromSquad: (franchiseId, playerId) => set((state) => ({
-        franchises: state.franchises.map(f => {
-          if (f.id !== franchiseId) return f;
-          return { ...f, squad: f.squad.filter(id => id !== playerId) };
-        })
-      })),
+      removeFromSquad: (franchiseId, playerId) => set((state) => {
+        const player = CANONICAL_PLAYER_BY_ID.get(PLAYER_ID_CANONICAL_MAP[playerId] || playerId);
+        const ownership = state.playerOwnershipMap[playerId] || state.playerOwnershipMap[PLAYER_ID_CANONICAL_MAP[playerId] || playerId];
+        const isAuctionPurchase = ownership?.status === 'SOLD' && ownership.teamId === franchiseId;
+        const historicalPrice = [...state.auctionHistory].reverse().find((entry) => entry.playerId === playerId && entry.soldTo === franchiseId)?.price;
+        const refund = isAuctionPurchase ? (ownership.price ?? historicalPrice ?? 0) : 0;
+        return {
+          franchises: state.franchises.map((franchise) => {
+            if (franchise.id !== franchiseId) return franchise;
+            const hadPlayer = franchise.squad.includes(playerId);
+            return {
+              ...franchise,
+              squad: franchise.squad.filter((id) => id !== playerId),
+              purse: franchise.purse + refund,
+              overseasCount: Math.max(0, franchise.overseasCount - (hadPlayer && player?.nationality === 'Overseas' ? 1 : 0)),
+            };
+          }),
+          playerOwnershipMap: {
+            ...state.playerOwnershipMap,
+            [PLAYER_ID_CANONICAL_MAP[playerId] || playerId]: {
+              status: 'RELEASED',
+              price: ownership?.price ?? historicalPrice ?? 0,
+              timestamp: Date.now(),
+            },
+          },
+          selectedSquadIds: state.selectedSquadIds.filter((id) => id !== playerId),
+          playingXIIds: state.playingXIIds.filter((id) => id !== playerId),
+        };
+      }),
       applyPostMatchPlayerUpdates: (playerId, updates) => set((state) => ({
         players: state.players.map(p => p.id === playerId ? { ...p, ...updates } : p)
       })),
@@ -966,7 +1015,7 @@ export const useGameStore = create<GameStore>()(
         stateHistory: [],
         selectedFranchiseId: null,
         franchises: INITIAL_FRANCHISES,
-        players: [...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL],
+        players: CANONICAL_PLAYER_POOL,
         auctionHistory: [],
         bidLog: [],
         unsoldPlayerIds: [],
@@ -1673,42 +1722,113 @@ export const useGameStore = create<GameStore>()(
       });
       },
 
-      simulateFullAuction: () => set((state) => {
-        const currentFranchises = buildOfficialFranchises(state.players, INITIAL_FRANCHISES);
-        const assignedIds = new Set(currentFranchises.flatMap((franchise) => franchise.squad));
-        const history = currentFranchises.flatMap((franchise) =>
-          franchise.squad.map((playerId) => ({
-            playerId,
-            soldTo: franchise.id,
-            price: state.players.find((player) => player.id === playerId)?.basePrice || 0,
-          })),
-        );
+      skipAuction: () => set((state) => {
+        const playersById = new Map(state.players.map((player) => [player.id, player]));
+        const playerByName = new Map(state.players.map((player) => [normalizePlayerName(player.name), player]));
+        const released = new Set(Object.entries(state.playerOwnershipMap)
+          .filter(([, record]) => record.status === 'RELEASED')
+          .map(([playerId]) => PLAYER_ID_CANONICAL_MAP[playerId] || playerId));
+        const soldOwner = new Map<string, { teamId: string; price: number }>();
 
-        const ownershipMap: Record<string, PlayerOwnershipRecord> = {};
-        history.forEach((h) => {
-          ownershipMap[h.playerId] = {
-            status: 'SOLD',
-            teamId: h.soldTo,
-            price: h.price,
-            timestamp: Date.now(),
-          };
+        Object.entries(state.playerOwnershipMap).forEach(([playerId, record]) => {
+          const id = PLAYER_ID_CANONICAL_MAP[playerId] || playerId;
+          if (record.status === 'SOLD' && record.teamId && !released.has(id)) {
+            soldOwner.set(id, { teamId: record.teamId, price: record.price || 0 });
+          }
         });
-        state.players.forEach((p) => {
-          if (!assignedIds.has(p.id)) {
-            ownershipMap[p.id] = { status: 'UNSOLD', timestamp: Date.now() };
+        state.auctionHistory.forEach((entry) => {
+          const id = PLAYER_ID_CANONICAL_MAP[entry.playerId] || entry.playerId;
+          if (entry.soldTo !== 'UNSOLD' && !released.has(id) && !soldOwner.has(id)) {
+            soldOwner.set(id, { teamId: entry.soldTo, price: entry.price });
           }
         });
 
+        const squadByTeam = new Map(state.franchises.map((franchise) => [franchise.id, [] as string[]]));
+        const assigned = new Set<string>();
+        const addToTeam = (teamId: string, playerId: string) => {
+          const canonicalId = PLAYER_ID_CANONICAL_MAP[playerId] || playerId;
+          const squad = squadByTeam.get(teamId);
+          if (!squad || !playersById.has(canonicalId) || released.has(canonicalId) || assigned.has(canonicalId) || squad.length >= 25) return;
+          squad.push(canonicalId);
+          assigned.add(canonicalId);
+        };
+
+        // First retain every actual purchase/current squad member on its confirmed owner.
+        state.franchises.forEach((franchise) => {
+          franchise.squad.forEach((legacyId) => {
+            const id = PLAYER_ID_CANONICAL_MAP[legacyId] || legacyId;
+            const owner = soldOwner.get(id);
+            addToTeam(owner?.teamId || franchise.id, id);
+          });
+        });
+        soldOwner.forEach((purchase, playerId) => addToTeam(purchase.teamId, playerId));
+
+        // Fill remaining places from the official 2026 squad lists without moving a bought player.
+        state.franchises.forEach((franchise) => {
+          const squadNames = OFFICIAL_2026_SQUADS[franchise.shortName] || [];
+          squadNames.forEach((name) => {
+            const player = playerByName.get(normalizePlayerName(name));
+            if (player) addToTeam(franchise.id, player.id);
+          });
+        });
+
+        const nextOwnership: Record<string, PlayerOwnershipRecord> = {};
+        const nextFranchises = state.franchises.map((franchise) => {
+          const squad = squadByTeam.get(franchise.id) || [];
+          const overseasCount = squad.filter((id) => playersById.get(id)?.nationality === 'Overseas').length;
+          const spend = squad.reduce((total, id) => {
+            const purchase = soldOwner.get(id);
+            const ownerRecord = state.playerOwnershipMap[id];
+            return total + (purchase?.price ?? ownerRecord?.price ?? playersById.get(id)?.basePrice ?? 0);
+          }, 0);
+          squad.forEach((id) => {
+            const purchase = soldOwner.get(id);
+            const previous = state.playerOwnershipMap[id];
+            nextOwnership[id] = purchase
+              ? { status: 'SOLD', teamId: franchise.id, price: purchase.price, timestamp: previous?.timestamp ?? Date.now() }
+              : { status: 'RETAINED', teamId: franchise.id, price: previous?.price ?? playersById.get(id)?.basePrice ?? 0, timestamp: previous?.timestamp ?? Date.now() };
+          });
+          return {
+            ...franchise,
+            squad,
+            shortlist: franchise.shortlist || [],
+            overseasCount,
+            purse: Math.max(0, 1_200_000_000 - spend),
+          };
+        });
+
+        // Released players are deliberately not re-added by the default-squad fallback.
+        released.forEach((id) => {
+          nextOwnership[id] = state.playerOwnershipMap[id] || { status: 'RELEASED', timestamp: Date.now() };
+          nextOwnership[id].status = 'RELEASED';
+        });
+
+        const availableAfterSkip = state.players
+          .map((player) => player.id)
+          .filter((id) => !assigned.has(id) && !released.has(id));
+        availableAfterSkip.forEach((id) => {
+          nextOwnership[id] = { status: 'UNSOLD', timestamp: Date.now() };
+        });
+
         return {
-          franchises: currentFranchises,
-          auctionHistory: history,
-          playerOwnershipMap: ownershipMap,
+          franchises: nextFranchises,
+          playerOwnershipMap: nextOwnership,
           auctionPhase: 'completed',
-          unsoldPlayerIds: state.players.filter((player) => !assignedIds.has(player.id)).map((player) => player.id),
+          auctionPool: [],
+          auctionPoolIndex: 0,
+          auctionCurrentBid: 0,
+          auctionLeadingTeamId: null,
+          currentAuctionPlayerId: null,
+          auctionTimer: 0,
+          auctionIsPaused: false,
+          withdrawnTeams: [],
+          bidLog: [],
+          unsoldPlayerIds: availableAfterSkip,
           activeTab: 'OVERVIEW',
-          gameState: GameState.ARENA_HUB
+          gameState: GameState.ARENA_HUB,
         };
       }),
+      simulateFullAuction: (_playerPool?: Player[]) => get().skipAuction(),
 
       setCaptain: (franchiseId, captainId) => set((state) => ({
         franchises: state.franchises.map((f) => f.id === franchiseId ? { ...f, captainId } : f),
