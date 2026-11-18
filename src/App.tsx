@@ -76,7 +76,7 @@ export default function App() {
   const isFullScreenMatch = gameState === GameState.MATCH_SIMULATION;
 
   return (
-    <div className="min-h-screen bg-[#071426] text-[#F6F8FC] font-sans bg-stadium-pattern flex flex-col selection:bg-[#258BFF] selection:text-white">
+    <div className="arena-app-shell min-h-screen bg-[#071426] text-[#F6F8FC] font-sans bg-stadium-pattern flex flex-col selection:bg-[#258BFF] selection:text-white">
       {viewedPlayer && (
         <React.Suspense fallback={null}>
           <PlayerProfileModal
@@ -89,7 +89,7 @@ export default function App() {
 
       {!isFullScreenMatch && <GlobalAppHeader />}
 
-      <main className="flex-1 min-w-0 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
+      <main className="arena-app-main flex-1 min-w-0 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-28 sm:pt-6 md:pb-6">
         <React.Suspense fallback={<PageLoading />}>
           {gameState === GameState.LANDING && <LandingPage />}
           {gameState === GameState.TEAM_SELECTION && <TeamSelection />}
