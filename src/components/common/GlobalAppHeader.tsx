@@ -27,7 +27,6 @@ type NavItem = {
 const PRIMARY_ITEMS: NavItem[] = [
   { key: 'home', label: 'Home', icon: Home },
   { key: 'career', label: 'Career', icon: Radio },
-  { key: 'fixtures', label: 'Fixtures', icon: Calendar },
   { key: 'play_now', label: 'Play Match', shortLabel: 'Play', icon: Play },
   { key: 'live_matches', label: 'Live Match', shortLabel: 'Live', icon: Video },
 ];
@@ -37,6 +36,7 @@ const MORE_GROUPS: { title: string; items: NavItem[] }[] = [
     title: 'Competitions',
     items: [
       { key: 'tournaments', label: 'Tournaments', icon: Trophy },
+      { key: 'fixtures', label: 'Fixtures & Results', icon: Calendar },
       { key: 'world_cup', label: 'World Cup', icon: Trophy },
       { key: 'practice', label: 'Practice Nets', icon: Target },
     ],
@@ -151,7 +151,7 @@ export default function GlobalAppHeader() {
           useGameStore.getState().setCurrentMatch(nextMatch.id);
           setGameState(GameState.PRE_MATCH);
         } else if (!selectedFranchiseId) {
-          setGameState(GameState.TEAM_SELECTION);
+          setGameState(GameState.LANDING);
         } else {
           setGameState(GameState.ARENA_HUB);
           setActiveTab('MATCHES');
@@ -205,7 +205,7 @@ export default function GlobalAppHeader() {
     }
   };
 
-  const renderNavItem = (item: NavItem, compact = false) => {
+  const renderNavItem = (item: NavItem, compact = false, menuItem = false) => {
     const Icon = item.icon;
     const isActive = activeKey === item.key;
 
@@ -219,7 +219,7 @@ export default function GlobalAppHeader() {
           'flex shrink-0 items-center rounded-xl font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F5B82E]',
           compact
             ? 'min-w-0 flex-col justify-center gap-1 px-1 py-2 text-[9px]'
-            : 'gap-2 px-3 py-2 text-[11px]',
+            : menuItem ? 'w-full justify-start gap-2 px-3 py-2 text-[11px]' : 'gap-2 px-3 py-2 text-[11px]',
           isActive
             ? 'bg-gradient-to-r from-[#258BFF] to-[#13A875] text-white shadow-md shadow-blue-500/20'
             : 'text-[#9DAEC4] hover:bg-white/5 hover:text-white'
@@ -347,7 +347,7 @@ export default function GlobalAppHeader() {
                   <div key={group.title} className="min-w-0">
                     <div className="mb-2 px-2 text-[9px] font-black uppercase tracking-[0.16em] text-[#6F89A8]">{group.title}</div>
                     <div className="space-y-1">
-                      {group.items.map(item => renderNavItem(item))}
+                      {group.items.map(item => renderNavItem(item, false, true))}
                     </div>
                   </div>
                 ))}
@@ -385,7 +385,7 @@ export default function GlobalAppHeader() {
             <section key={group.title} className="min-w-0">
               <h2 className="mb-2 px-1 text-[9px] font-black uppercase tracking-[0.16em] text-[#6F89A8]">{group.title}</h2>
               <div className="space-y-1">
-                {group.items.map(item => renderNavItem(item, false))}
+                {group.items.map(item => renderNavItem(item, false, true))}
               </div>
             </section>
           ))}
