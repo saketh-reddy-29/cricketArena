@@ -8,6 +8,7 @@ import {
 import { useGameStore, GameState, Franchise, PlayerOwnershipStatus } from '../stores/useGameStore';
 import confetti from 'canvas-confetti';
 import { cn } from '../lib/utils';
+import ModelPreloader from './common/ModelPreloader';
 import { evaluateBid, AuctionState, FranchiseAIState, getBidDelay } from '../lib/auctionAI';
 import { getPlayerImage, handlePlayerImageError } from '../lib/playerImages';
 import { Player } from '../types/common';
@@ -21,6 +22,8 @@ import {
 } from '../lib/iplAuctionEngine';
 
 const AuctionBroadcastStage = React.lazy(() => import('./AuctionBroadcastStage'));
+
+const AUCTION_CHARACTER_MODEL = '/models/cricket-arena/cartoon_character_3d_model.glb';
 
 const createFranchiseAIState = (): FranchiseAIState => ({
   fatigueLevel: 10,
@@ -63,6 +66,11 @@ export default function AuctionRoom() {
   const [sidebarTab, setSidebarTab] = useState<'live' | 'squads' | 'sold' | 'unsold'>('live');
   const [selectedSquadTeamId, setSelectedSquadTeamId] = useState<string>(selectedFranchiseId || '1');
   const [bidError, setBidError] = useState<string | null>(null);
+  const [auctionModelsReady, setAuctionModelsReady] = useState(false);
+  const [auctionIntroCountdown, setAuctionIntroCountdown] = useState(3);
+  const [auctionIntroComplete, setAuctionIntroComplete] = useState(false);
+  const resumeAfterIntroRef = useRef(Boolean(auctionIsPaused));
+  const onAuctionModelReady = useCallback((_modelUrl: string) => setAuctionModelsReady(true), []);
 
   const franchiseAIStates = useRef<Map<string, FranchiseAIState>>(new Map());
 
@@ -75,6 +83,23 @@ export default function AuctionRoom() {
     }
   }, [franchises]);
 
+  // Pause the auction clock while the broadcast character and textures are fetched.
+  useEffect(() => {
+    setAuctionPaused(true);
+    const interval = setInterval(() => {
+      setAuctionIntroCountdown((remaining) => {
+        if (remaining <= 1) { clearInterval(interval); return 0; }
+        return remaining - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [setAuctionPaused]);
+
+  useEffect(() => {
+    if (auctionIntroComplete || auctionIntroCountdown !== 0 || !auctionModelsReady) return;
+    setAuctionIntroComplete(true);
+    setAuctionPaused(resumeAfterIntroRef.current);
+  }, [auctionIntroComplete, auctionIntroCountdown, auctionModelsReady, setAuctionPaused]);
   // Ensure selected franchise is always established (default to team 1 / first franchise)
   const effectiveFranchiseId = selectedFranchiseId || franchises[0]?.id || '1';
   const userFranchise = franchises.find((f) => f.id === effectiveFranchiseId);
@@ -159,90 +184,49 @@ export default function AuctionRoom() {
   // Every non-user franchise runs its own scouting, budget, squad-need and buy/pass decision.
   // One selected bidder acts per round; the engine re-evaluates every team after each raise.
   useEffect(() => {
-    if (auctionPhase !== 'bidding' || auctionIsPaused || !currentPlayer || auctionTimer <= 1) return;
-
+    if (auctionPhase !== 'bidding' || auctionIsPaused || !currentPlayer) return;
     const nominatedPlayerId = currentPlayer.id;
     const bidAtSchedule = auctionCurrentBid;
     const leaderAtSchedule = auctionLeadingTeamId;
-    const requiredNextBid = auctionLeadingTeamId
-      ? auctionCurrentBid + getBidIncrement(auctionCurrentBid)
-      : auctionCurrentBid;
+    const requiredNextBid = auctionLeadingTeamId ? auctionCurrentBid + getBidIncrement(auctionCurrentBid) : auctionCurrentBid;
 
     const decisions = franchises
-      .filter((team) => team.id !== selectedFranchiseId && !withdrawnTeams.includes(team.id) && team.id !== auctionLeadingTeamId)
+      .filter((team) => team.id !== effectiveFranchiseId && !withdrawnTeams.includes(team.id) && team.id !== auctionLeadingTeamId)
       .map((team) => {
         const aiState = franchiseAIStates.current.get(team.id) || createFranchiseAIState();
         franchiseAIStates.current.set(team.id, aiState);
-        const decision = evaluateBid(
-          currentPlayer,
-          team,
-          auctionCurrentBid,
-          franchises,
-          auctionStateForAI,
-          aiState
-        );
-        const squadSafeCap = getMaxAllowableBid(team.purse, team.squad.length);
-        const hardCeiling = Math.min(decision.maximumBid, squadSafeCap, 250_000_000);
+        const decision = evaluateBid(currentPlayer, team, auctionCurrentBid, franchises, auctionStateForAI, aiState);
+        const purseCap = getMaxAllowableBid(team.purse, team.squad.length);
+        const hardCeiling = Math.min(decision.maximumBid, purseCap, 250_000_000);
         const targetBid = Math.max(requiredNextBid, decision.recommendedBid);
-        const stopCheck = shouldAIStopBidding(targetBid, hardCeiling, team, currentPlayer);
-        const canBid = decision.decision === 'BUY' && !stopCheck.shouldStop &&
-          team.squad.length < 25 && team.purse >= targetBid && targetBid <= hardCeiling;
-
-        if (!canBid) {
-          aiState.consecutivePasses = Math.min(30, aiState.consecutivePasses + 1);
-        }
-
-        return { team, aiState, decision, targetBid, hardCeiling, canBid };
+        const stop = shouldAIStopBidding(targetBid, hardCeiling, team, currentPlayer);
+        const canBid = decision.decision === 'BUY' && !stop.shouldStop && team.squad.length < 25 && team.purse >= targetBid && targetBid <= hardCeiling;
+        if (!canBid) aiState.consecutivePasses = Math.min(30, aiState.consecutivePasses + 1);
+        return { team, aiState, decision, targetBid, canBid };
       })
       .filter((entry) => entry.canBid)
       .sort((a, b) => {
-        // A team with a stronger role need and higher conviction gets first response,
-        // while its own DNA still controls aggression and reaction time.
-        const priorityA = a.decision.confidence + (a.decision.aggression === 'Extreme' ? 8 : a.decision.aggression === 'High' ? 5 : 0);
-        const priorityB = b.decision.confidence + (b.decision.aggression === 'Extreme' ? 8 : b.decision.aggression === 'High' ? 5 : 0);
-        return priorityB - priorityA;
+        const scoreA = a.decision.confidence + (a.decision.aggression === 'Extreme' ? 8 : a.decision.aggression === 'High' ? 5 : 0);
+        const scoreB = b.decision.confidence + (b.decision.aggression === 'Extreme' ? 8 : b.decision.aggression === 'High' ? 5 : 0);
+        return scoreB - scoreA;
       });
 
     const nextBidder = decisions[0];
     if (!nextBidder) return;
-
-    const thinkingDelay = getBidDelay(nextBidder.decision);
-    const remainingWindow = Math.max(350, (auctionTimer - 1) * 1000);
-    const delay = Math.min(thinkingDelay, remainingWindow);
+    const delay = Math.min(getBidDelay(nextBidder.decision), 7_500);
     const timeout = setTimeout(() => {
       const latest = useGameStore.getState();
-      if (
-        latest.auctionPhase !== 'bidding' ||
-        latest.auctionIsPaused ||
-        latest.auctionTimer <= 1 ||
-        latest.currentAuctionPlayerId !== nominatedPlayerId ||
-        latest.auctionCurrentBid !== bidAtSchedule ||
-        latest.auctionLeadingTeamId !== leaderAtSchedule
-      ) return;
-
+      if (latest.auctionPhase !== 'bidding' || latest.auctionIsPaused || latest.auctionTimer <= 1 ||
+          latest.currentAuctionPlayerId !== nominatedPlayerId || latest.auctionCurrentBid !== bidAtSchedule ||
+          latest.auctionLeadingTeamId !== leaderAtSchedule) return;
       const result = placeAuctionBid(nextBidder.team.id, nextBidder.targetBid);
       if (result.ok) {
         nextBidder.aiState.fatigueLevel = Math.min(100, nextBidder.aiState.fatigueLevel + 7);
         nextBidder.aiState.consecutivePasses = 0;
       }
     }, delay);
-
     return () => clearTimeout(timeout);
-  }, [
-    auctionPhase,
-    auctionIsPaused,
-    auctionTimer,
-    currentPlayer,
-    franchises,
-    auctionLeadingTeamId,
-    selectedFranchiseId,
-    withdrawnTeams,
-    auctionCurrentBid,
-    auctionPoolIndex,
-    totalPlayersInPool,
-    auctionStateForAI,
-    placeAuctionBid,
-  ]);
+  }, [auctionPhase, auctionIsPaused, currentPlayer, franchises, auctionLeadingTeamId, effectiveFranchiseId, withdrawnTeams, auctionCurrentBid, auctionStateForAI, placeAuctionBid]);
   // User Bidding Calculations & Handlers
   const nextIncrement = getBidIncrement(auctionCurrentBid);
   const nextUserBidAmount = auctionLeadingTeamId ? auctionCurrentBid + nextIncrement : auctionCurrentBid;
@@ -290,6 +274,9 @@ export default function AuctionRoom() {
 
   return (
     <div className="min-h-screen bg-[#071426] text-[#F6F8FC] font-sans flex flex-col relative overflow-hidden bg-stadium-pattern">
+      <React.Suspense fallback={null}>
+        <ModelPreloader modelUrl={AUCTION_CHARACTER_MODEL} onReady={onAuctionModelReady} />
+      </React.Suspense>
       {/* Top Header & Overview Bar */}
       <header className="sticky top-0 z-40 bg-[#071426]/90 backdrop-blur-md border-b border-white/10 px-4 py-3 sm:px-6">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
@@ -343,8 +330,9 @@ export default function AuctionRoom() {
             {/* Quick Action Controls */}
             <div className="flex items-center gap-2">
               <button
+                disabled={!auctionIntroComplete}
                 onClick={() => setAuctionPaused(!auctionIsPaused)}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition-colors"
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition-colors disabled:opacity-40"
                 title={auctionIsPaused ? 'Resume Auction' : 'Pause Auction'}
               >
                 {auctionIsPaused ? <Play className="w-4 h-4 text-green-400" /> : <Pause className="w-4 h-4 text-amber-400" />}
@@ -361,6 +349,24 @@ export default function AuctionRoom() {
           </div>
         </div>
       </header>
+
+      {!auctionIntroComplete && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-[#030a18]/95 px-5 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-3xl border border-amber-300/25 bg-[#0b1b35] p-8 text-center shadow-2xl">
+            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-300">Cricket Arena Broadcast</div>
+            <h2 className="mt-3 text-2xl font-black text-white sm:text-3xl">AUCTION STARTING</h2>
+            {auctionIntroCountdown > 0 ? (
+              <div className="mx-auto my-6 grid h-24 w-24 place-items-center rounded-full border-4 border-amber-300/60 bg-amber-300/10 text-5xl font-black tabular-nums text-amber-200">{auctionIntroCountdown}</div>
+            ) : (
+              <div className="my-7 flex flex-col items-center gap-3 text-sm font-bold text-cyan-100">
+                <span className="h-9 w-9 animate-spin rounded-full border-2 border-white/15 border-t-amber-300" />
+                Loading 3D auction characters and textures…
+              </div>
+            )}
+            <p className="text-xs leading-5 text-[#9DAEC4]">Bidding opens only after the 3D model is ready. The auction clock remains paused during preparation.</p>
+          </div>
+        </div>
+      )}
 
       {/* Main Auction Studio Stage */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
