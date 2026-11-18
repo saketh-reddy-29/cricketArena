@@ -8,6 +8,7 @@ import { useGameStore, ArenaFormat } from '../stores/useGameStore';
 import { cn } from '../lib/utils';
 import { BatterScoringMemory, CANONICAL_ZONES, CANONICAL_ZONE_LIST } from '../engine/analytics/BatterScoringMemory';
 import { getIPLCareerStats, IPL_CAREER_STATS_SOURCE } from '../data/iplCareerStats';
+import { getOfficialIPL2026Highlight, OFFICIAL_IPL_2026_SOURCE } from '../data/ipl2026OfficialHighlights';
 
 type ProfileTab = 
   | 'OVERVIEW' 
@@ -62,6 +63,7 @@ export default function PlayerProfileModal({ player, franchiseId, onClose }: Pla
   const isTest = activeFormat === 'TEST';
   const recentMatches = playerState?.recentMatches || [];
   const iplCareer = getIPLCareerStats(player.name);
+  const official2026 = getOfficialIPL2026Highlight(player.name);
 
   const scoringProfile = player ? BatterScoringMemory.getBatterProfile(player.id, {
     format: zoneFormat,
@@ -430,6 +432,41 @@ export default function PlayerProfileModal({ player, franchiseId, onClose }: Pla
 
             {activeTab === 'CAREER' && (
               <div className="space-y-3">
+                {official2026 && (
+                  <div className="bg-gradient-to-br from-amber-500/10 to-[#101a2e] p-4 rounded-2xl border border-amber-400/25 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-xs font-black uppercase text-amber-200 tracking-wider">Official IPL 2026 Season Highlight</h4>
+                        <p className="mt-1 text-[10px] text-white/45">{official2026.award}</p>
+                      </div>
+                      <span className="rounded-lg border border-amber-300/20 bg-amber-300/10 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-amber-100">2026</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                      {[
+                        ...(official2026.matches !== undefined ? [['Matches', official2026.matches] as [string, string | number]] : []),
+                        ...(official2026.runs !== undefined ? [['Runs', official2026.runs] as [string, string | number]] : []),
+                        ...(official2026.battingAverage !== undefined ? [['Average', official2026.battingAverage] as [string, string | number]] : []),
+                        ...(official2026.highestScore !== undefined ? [['Highest score', official2026.highestScore] as [string, string | number]] : []),
+                        ...(official2026.highestScoreStrikeRate !== undefined ? [['HS strike rate', official2026.highestScoreStrikeRate] as [string, string | number]] : []),
+                        ...(official2026.wickets !== undefined ? [['Wickets', official2026.wickets] as [string, string | number]] : []),
+                        ...(official2026.bestBowling ? [['Best bowling', official2026.bestBowling] as [string, string | number]] : []),
+                        ...(official2026.dotBalls !== undefined ? [['Dot balls', official2026.dotBalls] as [string, string | number]] : []),
+                      ].map(([label, value]) => (
+                        <div key={label} className="bg-black/30 p-2 rounded-lg">
+                          <div className="text-[9px] text-white/40">{label}</div>
+                          <div className="font-bold text-white">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {official2026.highestScoreOpponent && (
+                      <p className="text-[10px] text-white/50">Highest score was against {official2026.highestScoreOpponent}.</p>
+                    )}
+                    <p className="text-[9px] leading-4 text-white/35">
+                      Selected leaderboard figures from {OFFICIAL_IPL_2026_SOURCE.title}.{' '}
+                      <a href={OFFICIAL_IPL_2026_SOURCE.url} target="_blank" rel="noreferrer" className="text-cyan-300 underline underline-offset-2">Official IPL source</a>
+                    </p>
+                  </div>
+                )}
                 <div className="bg-[#101a2e] p-4 rounded-2xl border border-white/5 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
