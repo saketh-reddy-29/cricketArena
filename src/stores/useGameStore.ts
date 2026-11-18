@@ -35,7 +35,7 @@ import { BatterScoringMemory } from '../engine/analytics/BatterScoringMemory';
 import { GoogleUserProfile, CloudSaveData } from '../types/auth';
 import type { MatchCheckpoint, MatchSaveStatus } from '../types/matchRecovery';
 import { matchRecoveryStorage } from '../engine/storage/MatchRecoveryStorage';
-import { getBidIncrement, getMaxAllowableBid } from '../lib/iplAuctionEngine';
+import { getBidIncrement, getMaxAllowableBid, getAuctionNominationScore } from '../lib/iplAuctionEngine';
 
 // Pre-flight cleanup: if localStorage contains bloated old store payload, strip heavy keys immediately
 try {
@@ -633,13 +633,15 @@ export const useGameStore = create<GameStore>()(
         const assignedIds = new Set(state.franchises.flatMap((f) => f.squad));
         const availablePlayers = state.players.filter((p) => !assignedIds.has(p.id));
 
-        // Fisher-Yates shuffle
-        const shuffled = [...availablePlayers];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-        const poolIds = shuffled.map((p) => p.id);
+        // Nominate proven/high-performing profiles first. Unproven bench options remain
+        // available for later rounds instead of being presented before marquee players.
+        const poolIds = [...availablePlayers]
+          .sort((a, b) =>
+            getAuctionNominationScore(b) - getAuctionNominationScore(a) ||
+            b.rating - a.rating ||
+            a.id.localeCompare(b.id)
+          )
+          .map((player) => player.id);
 
         const ownershipMap: Record<string, PlayerOwnershipRecord> = {};
         state.franchises.forEach((f) => {
