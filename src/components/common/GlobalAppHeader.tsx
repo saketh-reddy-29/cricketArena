@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { 
-  Home, Radio, Play, Trophy, Calendar, Video, Users, User, Gavel, 
-  BarChart3, Award, BookmarkCheck, Save, Settings, ChevronRight, Sparkles,
-  Shield, Bell, ExternalLink, Zap,
-  Target,
-  Shirt,
+import {
+  Home, Radio, Play, Trophy, Calendar, Video, User, Gavel,
+  BarChart3, Award, BookmarkCheck, Save, Settings, Shield, Target, Shirt,
+  Menu, X,
 } from 'lucide-react';
-import { useGameStore, GameState, ArenaTab } from '../../stores/useGameStore';
+import { useGameStore, GameState } from '../../stores/useGameStore';
 import { resolveTeamLogoUrl } from '../../lib/teamLogos';
 import { cn } from '../../lib/utils';
-import SettingsModal from './SettingsModal';
-import GoogleAccountModal from '../auth/GoogleAccountModal';
+
+// Settings and cloud-save UI are opened rarely; keep them out of the shared
+// navigation bundle until the player asks for them.
+const SettingsModal = React.lazy(() => import('./SettingsModal'));
+const GoogleAccountModal = React.lazy(() => import('../auth/GoogleAccountModal'));
 
 export type NavItemKey =
   | 'home'
@@ -32,13 +33,13 @@ export type NavItemKey =
   | 'settings';
 
 export default function GlobalAppHeader() {
-  const { 
-    gameState, 
-    setGameState, 
-    activeTab, 
+  const {
+    gameState,
+    setGameState,
+    activeTab,
     setActiveTab,
-    selectedFormat, 
-    selectedFranchiseId, 
+    selectedFormat,
+    selectedFranchiseId,
     franchises,
     fixtures,
     currentMatchId,
@@ -50,12 +51,9 @@ export default function GlobalAppHeader() {
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const team = franchises.find(f => f.id === selectedFranchiseId);
-
-  // Check if there is an active live match
+  const team = franchises.find(franchise => franchise.id === selectedFranchiseId);
   const isMatchLive = Boolean(liveMatchState && currentMatchId);
 
-  // Active navigation determination
   const getActiveNavKey = (): NavItemKey => {
     if (gameState === GameState.LANDING) return 'home';
     if (gameState === GameState.PRE_MATCH) return 'play_now';
@@ -95,11 +93,11 @@ export default function GlobalAppHeader() {
         setGameState(GameState.ARENA_HUB);
         setActiveTab('OVERVIEW');
         break;
-      case 'play_now':
-        // Find next scheduled user match
+      case 'play_now': {
         const nextMatch = fixtures.find(
-          f => (f.team1Id === selectedFranchiseId || f.team2Id === selectedFranchiseId) &&
-               f.status !== 'COMPLETED'
+          fixture =>
+            (fixture.team1Id === selectedFranchiseId || fixture.team2Id === selectedFranchiseId) &&
+            fixture.status !== 'COMPLETED'
         );
         if (nextMatch) {
           useGameStore.getState().setCurrentMatch(nextMatch.id);
@@ -109,6 +107,7 @@ export default function GlobalAppHeader() {
           setActiveTab('MATCHES');
         }
         break;
+      }
       case 'tournaments':
         setGameState(GameState.LANDING);
         break;
@@ -153,15 +152,17 @@ export default function GlobalAppHeader() {
         setGameState(GameState.ACHIEVEMENTS);
         break;
       case 'save_load':
-        setShowSettings(true);
-        break;
       case 'settings':
         setShowSettings(true);
         break;
     }
   };
 
-  const primaryNavItems: { key: NavItemKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  const primaryNavItems: {
+    key: NavItemKey;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[] = [
     { key: 'home', label: 'Home', icon: Home },
     { key: 'career', label: 'Career', icon: Radio },
     { key: 'play_now', label: 'Play Now', icon: Play },
@@ -181,140 +182,190 @@ export default function GlobalAppHeader() {
     { key: 'settings', label: 'Settings', icon: Settings },
   ];
 
+  const renderNavItem = (item: (typeof primaryNavItems)[number], compact = false) => {
+    const Icon = item.icon;
+    const isActive = activeKey === item.key;
+    const mobileLabel =
+      item.key === 'play_now' ? 'Play' :
+      item.key === 'tournaments' ? 'Events' :
+      item.key === 'live_matches' ? 'Live' : item.label;
+
+    return (
+      <button
+        key={item.key}
+        type="button"
+        onClick={() => handleNavClick(item.key)}
+        aria-current={isActive ? 'page' : undefined}
+        className={cn(
+          'flex shrink-0 items-center justify-center gap-1.5 rounded-xl font-bold uppercase tracking-wide transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
+          compact
+            ? 'min-w-0 flex-col gap-1 px-1 py-2 text-[9px]'
+            : 'px-3 py-2 text-[11px]',
+          isActive
+            ? 'bg-gradient-to-r from-[#258BFF] to-[#13A875] text-white shadow-md shadow-blue-500/20'
+            : 'text-[#9DAEC4] hover:bg-white/5 hover:text-white'
+        )}
+      >
+        <Icon className={cn(compact ? 'h-4 w-4' : 'h-3.5 w-3.5', isActive ? 'text-white' : 'text-[#9DAEC4]')} />
+        <span className={compact ? 'max-w-full truncate' : 'whitespace-nowrap'}>
+          {compact ? mobileLabel : item.label}
+        </span>
+      </button>
+    );
+  };
+
   return (
     <>
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
-      {showGoogleModal && <GoogleAccountModal onClose={() => setShowGoogleModal(false)} />}
+      {(showSettings || showGoogleModal) && (
+        <React.Suspense fallback={null}>
+          {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+          {showGoogleModal && <GoogleAccountModal onClose={() => setShowGoogleModal(false)} />}
+        </React.Suspense>
+      )}
 
-      <header className="sticky top-0 z-50 bg-[#071426]/95 backdrop-blur-md border-b border-white/10 shadow-xl">
-        {/* Top Brand & Career Bar */}
-        <div className="max-w-[1720px] mx-auto px-4 py-2.5 flex items-center justify-between border-b border-white/5">
-          {/* Logo & App Title */}
-          <div 
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#071426]/95 shadow-xl backdrop-blur-md">
+        <div className="mx-auto flex max-w-[1720px] items-center justify-between gap-3 border-b border-white/5 px-3 py-2.5 sm:px-4">
+          <button
+            type="button"
             onClick={() => handleNavClick('home')}
-            className="flex items-center gap-3 cursor-pointer group"
+            aria-label="Go to Cricket Arena home"
+            className="group flex min-w-0 items-center gap-2.5 text-left sm:gap-3"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#258BFF] via-[#13A875] to-[#F5B82E] p-0.5 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-[#071426] rounded-[10px] flex items-center justify-center">
-                <Trophy className="w-4 h-4 text-[#F5B82E]" />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-base font-black tracking-tight text-white group-hover:text-blue-400 transition-colors">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[#258BFF] via-[#13A875] to-[#F5B82E] p-0.5 shadow-lg shadow-blue-500/20 transition-transform group-hover:scale-105">
+              <span className="flex h-full w-full items-center justify-center rounded-[10px] bg-[#071426]">
+                <Trophy className="h-4 w-4 text-[#F5B82E]" />
+              </span>
+            </span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5">
+                <span className="whitespace-nowrap text-sm font-black tracking-tight text-white transition-colors group-hover:text-blue-400 sm:text-base">
                   CRICKET ARENA
                 </span>
-                <span className="px-1.5 py-0.2 rounded bg-blue-500/20 text-[#258BFF] text-[10px] font-black border border-blue-500/30">
+                <span className="rounded border border-blue-500/30 bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-black text-[#258BFF]">
                   PRO
                 </span>
-              </div>
-              <div className="text-[10px] text-[#9DAEC4] font-medium tracking-wide">
-                AAA Sports Simulation & Management
-              </div>
-            </div>
-          </div>
+              </span>
+              <span className="hidden text-[10px] font-medium tracking-wide text-[#9DAEC4] sm:block">
+                AAA Sports Simulation &amp; Management
+              </span>
+            </span>
+          </button>
 
-          {/* Current Active Career Status Badge */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden items-center gap-3 md:flex">
             {team ? (
-              <div 
+              <button
+                type="button"
                 onClick={() => handleNavClick('career')}
-                className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-[#10233D] border border-white/10 cursor-pointer hover:border-blue-500/50 transition-all shadow-sm"
+                className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-[#10233D] px-3 py-1.5 text-left shadow-sm transition-colors hover:border-blue-500/50"
               >
-                <img 
-                  src={resolveTeamLogoUrl(team.shortName, team.logo)} 
+                <img
+                  src={resolveTeamLogoUrl(team.shortName, team.logo)}
                   alt={team.name}
-                  className="w-5 h-5 object-contain"
+                  width={24}
+                  height={24}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-6 w-6 object-contain"
                 />
-                <div className="text-left">
-                  <div className="text-[10px] text-[#9DAEC4] uppercase font-bold leading-none">
+                <span>
+                  <span className="block text-[10px] font-bold uppercase leading-none text-[#9DAEC4]">
                     {selectedFormat || 'IPL 2026'} Career
-                  </div>
-                  <div className="text-xs font-black text-white leading-tight">
-                    {team.name}
-                  </div>
-                </div>
-                <div className="ml-2 pl-2 border-l border-white/10 text-right">
-                  <div className="text-[9px] text-[#9DAEC4] leading-none">Purse</div>
-                  <div className="text-xs font-black text-[#F5B82E]">
+                  </span>
+                  <span className="block text-xs font-black leading-tight text-white">{team.name}</span>
+                </span>
+                <span className="ml-2 border-l border-white/10 pl-2 text-right">
+                  <span className="block text-[9px] leading-none text-[#9DAEC4]">Purse</span>
+                  <span className="block text-xs font-black text-[#F5B82E]">
                     ₹{(team.purse / 10000000).toFixed(1)}Cr
-                  </div>
-                </div>
-              </div>
+                  </span>
+                </span>
+              </button>
             ) : (
-              <div className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs text-[#9DAEC4] font-medium">
+              <span className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-[#9DAEC4]">
                 No Career Selected
-              </div>
+              </span>
             )}
 
             {isMatchLive && (
               <button
+                type="button"
                 onClick={() => handleNavClick('live_matches')}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-500/20 text-red-300 border border-red-500/40 text-xs font-black uppercase tracking-wider animate-pulse hover:bg-red-500/30 transition-all"
+                className="flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/20 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-red-300 transition-colors hover:bg-red-500/30"
               >
-                <div className="w-2 h-2 rounded-full bg-red-400" />
-                <span>MATCH IN PROGRESS</span>
+                <span className="h-2 w-2 rounded-full bg-red-400" />
+                <span>Match in Progress</span>
               </button>
             )}
           </div>
 
-          {/* User Profile & Global Controls */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-2">
             {authUser ? (
               <button
+                type="button"
                 onClick={() => setShowGoogleModal(true)}
-                className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs text-white transition-all"
+                aria-label="Open account and cloud save"
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-2.5 py-1 text-xs text-white transition-colors hover:bg-white/15"
               >
                 <img
-                  src={authUser.picture || `https://api.dicebear.com/7.x/initials/svg?seed=${authUser.name}`}
-                  alt={authUser.name}
-                  className="w-5 h-5 rounded-full object-cover"
+                  src={authUser.picture || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(authUser.name)}`}
+                  alt=""
+                  width={20}
+                  height={20}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-5 w-5 rounded-full object-cover"
                 />
-                <span className="font-bold hidden sm:inline max-w-[100px] truncate">{authUser.name}</span>
+                <span className="hidden max-w-[100px] truncate font-bold sm:inline">{authUser.name}</span>
               </button>
             ) : (
               <button
+                type="button"
                 onClick={() => setShowGoogleModal(true)}
-                className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-[#9DAEC4] font-bold transition-all"
+                className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-2 text-[11px] font-bold text-[#9DAEC4] transition-colors hover:bg-white/10 hover:text-white"
               >
                 Sign In
               </button>
             )}
 
             <button
+              type="button"
               onClick={() => setShowSettings(true)}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[#9DAEC4] hover:text-white transition-all"
+              aria-label="Open settings and cloud save"
               title="Settings & Cloud Save"
+              className="rounded-xl border border-white/10 bg-white/5 p-2 text-[#9DAEC4] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* 14 Primary Navigation Items Carousel / Bar */}
-        <nav className="max-w-[1720px] mx-auto px-2 sm:px-4 overflow-x-auto scrollbar-hide py-1.5">
-          <div className="flex items-center gap-1 sm:gap-1.5 min-w-max">
-            {primaryNavItems.map(item => {
-              const Icon = item.icon;
-              const isActive = activeKey === item.key;
-
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => handleNavClick(item.key)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black tracking-wide uppercase transition-all shrink-0",
-                    isActive
-                      ? "bg-gradient-to-r from-[#258BFF] to-[#13A875] text-white shadow-md shadow-blue-500/20"
-                      : "text-[#9DAEC4] hover:text-white hover:bg-white/5"
-                  )}
-                >
-                  <Icon className={cn("w-3.5 h-3.5", isActive ? "text-white" : "text-[#9DAEC4]")} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
+        <nav aria-label="Main navigation" className="mx-auto max-w-[1720px] px-2 py-1.5 sm:px-4">
+          <div className="hidden items-center gap-1 overflow-x-auto md:flex">
+            {primaryNavItems.map(item => renderNavItem(item))}
           </div>
+
+          <div className="grid grid-cols-[repeat(5,minmax(0,1fr))] gap-1 md:hidden">
+            {primaryNavItems.slice(0, 5).map(item => renderNavItem(item, true))}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(open => !open)}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="arena-mobile-more-nav"
+              className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[9px] font-bold uppercase tracking-wide text-[#9DAEC4] transition-colors hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            >
+              {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              <span>{mobileMenuOpen ? 'Close' : 'More'}</span>
+            </button>
+          </div>
+
+          {mobileMenuOpen && (
+            <div
+              id="arena-mobile-more-nav"
+              className="mt-2 grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-[#0D1C32] p-2 md:hidden"
+            >
+              {primaryNavItems.slice(5).map(item => renderNavItem(item, true))}
+            </div>
+          )}
         </nav>
       </header>
     </>
