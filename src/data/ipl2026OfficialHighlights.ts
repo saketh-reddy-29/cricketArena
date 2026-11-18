@@ -23,25 +23,25 @@ export const OFFICIAL_IPL_2026_SOURCE = {
 } as const;
 
 const highlights: Record<string, OfficialIPL2026Highlight> = {
-  'vaibhav sooryavanshi': {
+  'vaibhavsooryavanshi': {
     matches: 16,
     runs: 776,
     battingAverage: 48.5,
     award: 'Orange Cap',
   },
-  'kagiso rabada': {
+  'kagisorabada': {
     matches: 17,
     wickets: 29,
     bestBowling: '3/25',
     award: 'Purple Cap',
   },
-  'kl rahul': {
+  'klrahul': {
     highestScore: 152,
     highestScoreOpponent: 'Punjab Kings',
     highestScoreStrikeRate: 226.86,
     award: 'Highest individual score',
   },
-  'mohsin khan': {
+  'mohsinkhan': {
     matches: 7,
     wickets: 11,
     dotBalls: 69,
@@ -50,9 +50,9 @@ const highlights: Record<string, OfficialIPL2026Highlight> = {
 };
 
 const aliases: Record<string, string> = {
-  'k l rahul': 'kl rahul',
+  'klrahul': 'kl rahul',
   'mohsin khan': 'mohsin khan',
-  'moshin khan': 'mohsin khan',
+  'moshinkhan': 'mohsin khan',
 };
 
 const normalize = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
