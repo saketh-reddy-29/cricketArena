@@ -174,7 +174,7 @@ export default function AuctionRoom() {
 
   // Master countdown timer tick
   useEffect(() => {
-    if (auctionPhase !== 'bidding' || auctionIsPaused) return;
+    if (!auctionIntroComplete || auctionPhase !== 'bidding' || auctionIsPaused) return;
 
     const interval = setInterval(() => {
       if (auctionTimer <= 1) {
@@ -186,12 +186,12 @@ export default function AuctionRoom() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [auctionPhase, auctionIsPaused, auctionTimer, setAuctionTimer, handleSaleConclusion]);
+  }, [auctionIntroComplete, auctionPhase, auctionIsPaused, auctionTimer, setAuctionTimer, handleSaleConclusion]);
 
   // Every non-user franchise runs its own scouting, budget, squad-need and buy/pass decision.
   // One selected bidder acts per round; the engine re-evaluates every team after each raise.
   useEffect(() => {
-    if (auctionPhase !== 'bidding' || auctionIsPaused || !currentPlayer) return;
+    if (!auctionIntroComplete || auctionPhase !== 'bidding' || auctionIsPaused || !currentPlayer) return;
     const nominatedPlayerId = currentPlayer.id;
     const bidAtSchedule = auctionCurrentBid;
     const leaderAtSchedule = auctionLeadingTeamId;
@@ -233,7 +233,7 @@ export default function AuctionRoom() {
       }
     }, delay);
     return () => clearTimeout(timeout);
-  }, [auctionPhase, auctionIsPaused, currentPlayer, franchises, auctionLeadingTeamId, effectiveFranchiseId, withdrawnTeams, auctionCurrentBid, auctionStateForAI, placeAuctionBid]);
+  }, [auctionIntroComplete, auctionPhase, auctionIsPaused, currentPlayer, franchises, auctionLeadingTeamId, effectiveFranchiseId, withdrawnTeams, auctionCurrentBid, auctionStateForAI, placeAuctionBid]);
   // User Bidding Calculations & Handlers
   const nextIncrement = getBidIncrement(auctionCurrentBid);
   const nextUserBidAmount = auctionLeadingTeamId ? auctionCurrentBid + nextIncrement : auctionCurrentBid;
@@ -256,6 +256,7 @@ export default function AuctionRoom() {
   }, [franchises, players]);
 
   const handleUserBid = (customIncrement?: number) => {
+    if (!auctionIntroComplete) return;
     const teamId = selectedFranchiseId || effectiveFranchiseId;
     if (!selectedFranchiseId && teamId) {
       selectFranchise(teamId);
@@ -273,6 +274,7 @@ export default function AuctionRoom() {
   };
 
   const handleUserPass = () => {
+    if (!auctionIntroComplete) return;
     const teamId = selectedFranchiseId || effectiveFranchiseId;
     if (teamId) {
       teamPassPlayer(teamId);
