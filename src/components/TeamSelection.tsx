@@ -133,7 +133,7 @@ export default function TeamSelection() {
           ))}
         </div>
 
-        <div className="glass-card sticky bottom-[calc(5.1rem+env(safe-area-inset-bottom))] z-30 flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-white/10 p-3 shadow-2xl sm:flex-row sm:items-center sm:p-4 md:bottom-4">
+        <div className="glass-card fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 md:sticky md:inset-auto md:bottom-4 flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-white/10 p-3 shadow-2xl sm:flex-row sm:items-center sm:p-4 md:bottom-4">
           <div className="text-xs text-[#9DAEC4] font-medium">
             {selectedId ? (
               <span>Selected: <strong className="text-white font-bold">{selectedIntlTeam?.name}</strong></span>
@@ -240,7 +240,7 @@ export default function TeamSelection() {
           </div>
 
           {/* Bottom CTA */}
-          <div className="glass-card sticky bottom-[calc(5.1rem+env(safe-area-inset-bottom))] z-30 flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-white/10 p-3 shadow-2xl sm:flex-row sm:items-center sm:p-4 md:bottom-4">
+          <div className="glass-card fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 md:sticky md:inset-auto md:bottom-4 flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-white/10 p-3 shadow-2xl sm:flex-row sm:items-center sm:p-4 md:bottom-4">
             <div className="text-xs text-[#9DAEC4] font-medium">
               {selectedId ? (
                 <span>Selected: <strong className="text-white font-bold">{selectedFranchise?.name}</strong></span>
