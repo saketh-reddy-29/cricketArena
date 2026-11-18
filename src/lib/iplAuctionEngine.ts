@@ -62,6 +62,65 @@ export function calculateAIBaseValuation(rating: number): number {
   }
 }
 
+export interface PlayerAuctionProfile {
+  matches: number;
+  hasPerformanceData: boolean;
+  isProven: boolean;
+  performanceScore: number;
+  nominationScore: number;
+  maxBidCap: number;
+}
+
+/** Uses only recorded match/stat fields; missing real match history is treated as unproven. */
+export function getPlayerAuctionProfile(player: Player): PlayerAuctionProfile {
+  const career = player.careerStats;
+  const matches = Math.max(0, player.matches || 0, career ? career.matches : 0);
+  const runs = Math.max(0, player.runs || 0, career ? career.runs : 0);
+  const wickets = Math.max(0, player.wickets || 0, career ? career.wickets : 0);
+  const strikeRate = Math.max(0, player.strikeRate || 0);
+  const economy = Math.max(0, player.economy || 0);
+  const hasPerformanceData = matches > 0 && (runs > 0 || wickets > 0 || strikeRate > 0 || economy > 0);
+  const rating = Math.max(50, Math.min(100, player.rating || player.baseAbility || 75));
+  const form = Math.max(0, Math.min(100, player.form === undefined ? 70 : player.form));
+  const batting = Math.max(0, Math.min(100, player.stats ? player.stats.batting : rating));
+  const bowling = Math.max(0, Math.min(100, player.stats ? player.stats.bowling : rating));
+  const fielding = Math.max(0, Math.min(100, player.stats ? player.stats.fielding : rating));
+  const roleSkill = player.role === 'Bowler' ? bowling : player.role === 'All-rounder' ? (batting + bowling) / 2 : batting;
+  const abilityScore = rating * 0.42 + roleSkill * 0.38 + form * 0.12 + fielding * 0.08;
+  let statisticalScore = abilityScore;
+  if (hasPerformanceData) {
+    if (player.role === 'Bowler') {
+      const wicketRate = Math.min(100, (wickets / matches) * 160);
+      const economyScore = economy > 0 ? Math.max(0, Math.min(100, (11 - economy) * 18)) : abilityScore;
+      statisticalScore = wicketRate * 0.55 + economyScore * 0.45;
+    } else if (player.role === 'All-rounder') {
+      const battingRate = Math.min(100, (runs / matches) * 2.2);
+      const bowlingRate = Math.min(100, (wickets / matches) * 160);
+      statisticalScore = battingRate * 0.32 + bowlingRate * 0.32 + abilityScore * 0.36;
+    } else {
+      const runsScore = Math.min(100, (runs / matches) * 2.2);
+      const strikeScore = strikeRate > 0 ? Math.max(0, Math.min(100, (strikeRate - 70) * 1.35)) : runsScore;
+      statisticalScore = runsScore * 0.58 + strikeScore * 0.42;
+    }
+  }
+  const performanceScore = Math.round(Math.max(0, Math.min(100, hasPerformanceData ? statisticalScore * 0.62 + abilityScore * 0.38 : abilityScore)));
+  const isProven = matches >= 12 && hasPerformanceData;
+  let cap = 15_000_000;
+  if (matches >= 40 && isProven && performanceScore >= 88) cap = 250_000_000;
+  else if (matches >= 25 && isProven && performanceScore >= 85) cap = 180_000_000;
+  else if (matches >= 12 && isProven && performanceScore >= 80) cap = 140_000_000;
+  else if (matches >= 6) cap = 90_000_000;
+  else if (matches >= 1) cap = 60_000_000;
+  else if (rating >= 90) cap = 45_000_000;
+  else if (rating >= 82) cap = 25_000_000;
+  const maxBidCap = Math.max(player.basePrice || 2_000_000, cap);
+  const nominationScore = performanceScore * 100 + rating * 10 + Math.min(matches, 100) * 3 + (isProven ? 1_000 : 0);
+  return { matches, hasPerformanceData, isProven, performanceScore, nominationScore, maxBidCap };
+}
+
+export function getAuctionNominationScore(player: Player): number {
+  return getPlayerAuctionProfile(player).nominationScore;
+}
 /**
  * Simple deterministic pseudo-random variance between 0.85 and 1.15 (±15%)
  * Consistent for a given player and franchise so AI decisions are stable across counter-bids.
@@ -88,11 +147,13 @@ export function calculateAIMaxWillingToPay(
   poolIndex = 0,
   totalPool = 100
 ): number {
-  const rating = player.rating || (player as any).baseAbility || 75;
+  const profile = getPlayerAuctionProfile(player);
+  const rating = player.rating || player.baseAbility || 75;
   const baseValuation = calculateAIBaseValuation(rating);
   const variance = getPseudoVariance(player.id, franchise.id);
 
-  let valuation = baseValuation * variance;
+  // Overall rating creates interest, while recorded experience/performance controls the ceiling.
+  let valuation = Math.min(baseValuation * variance, profile.maxBidCap);
 
   // Role need analysis
   const squadPlayers = franchise.squad
@@ -118,7 +179,7 @@ export function calculateAIMaxWillingToPay(
 
   // Minimum floor is player's base price
   const basePrice = player.basePrice || player.price || 2_000_000;
-  return Math.max(basePrice, Math.round(valuation));
+  return Math.min(profile.maxBidCap, Math.max(basePrice, Math.round(valuation)));
 }
 
 /**
