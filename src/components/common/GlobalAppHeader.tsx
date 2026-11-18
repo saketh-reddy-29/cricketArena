@@ -134,8 +134,12 @@ export default function GlobalAppHeader() {
         setGameState(GameState.LANDING);
         break;
       case 'career':
-        setGameState(GameState.ARENA_HUB);
-        setActiveTab('OVERVIEW');
+        if (!selectedFranchiseId) {
+          setGameState(GameState.LANDING);
+        } else {
+          setGameState(GameState.ARENA_HUB);
+          setActiveTab('OVERVIEW');
+        }
         break;
       case 'play_now': {
         if (liveMatchState && currentMatchId) {
@@ -240,7 +244,7 @@ export default function GlobalAppHeader() {
         </React.Suspense>
       )}
 
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#071426]/95 shadow-xl backdrop-blur-md">
+      <header onKeyDown={event => { if (event.key === 'Escape') setMoreOpen(false); }} className="sticky top-0 z-50 border-b border-white/10 bg-[#071426]/95 shadow-xl backdrop-blur-md">
         <div className="mx-auto flex max-w-[1720px] items-center justify-between gap-3 border-b border-white/5 px-3 py-2.5 sm:px-4 lg:px-6">
           <button
             type="button"
