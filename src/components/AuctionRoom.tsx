@@ -57,7 +57,7 @@ export default function AuctionRoom() {
     teamPassPlayer,
     setAuctionTimer,
     setAuctionPaused,
-    simulateFullAuction,
+    skipAuction,
     setGameState,
     setActiveTab,
     setViewedPlayer,
@@ -347,13 +347,13 @@ export default function AuctionRoom() {
                 {auctionIsPaused ? <Play className="w-4 h-4 text-green-400" /> : <Pause className="w-4 h-4 text-amber-400" />}
               </button>
               <button
-                disabled={!auctionIntroComplete}
-                onClick={() => simulateFullAuction(players)}
+                disabled={!auctionIntroComplete || auctionPhase === 'completed'}
+                onClick={skipAuction}
                 className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:pointer-events-none"
-                title="Instant simulation of remaining auction"
+                title="Skip bidding and load the official default franchise squads"
               >
                 <FastForward className="w-3.5 h-3.5" />
-                <span>Simulate Rest</span>
+                <span>Skip Auction · Default Squads</span>
               </button>
             </div>
           </div>
@@ -374,6 +374,27 @@ export default function AuctionRoom() {
               </div>
             )}
             <p className="text-xs leading-5 text-[#9DAEC4]">Bidding opens only after the 3D model is ready. The auction clock remains paused during preparation.</p>
+          </div>
+        </div>
+      )}
+
+      {auctionIntroComplete && auctionPhase === 'completed' && (
+        <div className="mx-auto mt-5 w-full max-w-7xl px-4 sm:px-6">
+          <div className="flex flex-col gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-wide text-emerald-200">Auction completed</h2>
+              <p className="mt-1 text-xs text-[#c4d2e3]">Your purchased players are saved in their team squads. Continue to fixtures and match preparation, or use the skip option before the auction completes to load default squads.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('OVERVIEW');
+                setGameState(GameState.ARENA_HUB);
+              }}
+              className="shrink-0 rounded-xl bg-emerald-500 px-5 py-3 text-xs font-black uppercase tracking-wide text-[#041b17] shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
+            >
+              Continue to Fixtures & Matches
+            </button>
           </div>
         </div>
       )}
