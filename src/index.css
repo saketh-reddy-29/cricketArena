@@ -239,3 +239,79 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Shared game-shell polish: keep the interface calm, legible and responsive. */
+.arena-app-shell {
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse at 50% -18%, rgba(37, 139, 255, 0.09), transparent 52%),
+    #071426;
+}
+
+.arena-app-main {
+  min-height: 0;
+  width: 100%;
+}
+
+.arena-app-main > * {
+  min-width: 0;
+}
+
+button,
+a,
+[role='button'] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+a {
+  touch-action: manipulation;
+}
+
+button:disabled {
+  opacity: 0.42;
+  filter: saturate(0.6);
+}
+
+@media (max-width: 767px) {
+  .arena-app-main {
+    padding-left: 0.875rem;
+    padding-right: 0.875rem;
+  }
+
+  /* Prevent wide data tables and tactical panels from forcing page overflow. */
+  .arena-app-main table {
+    min-width: 560px;
+  }
+}
+
+@media (min-width: 768px) {
+  .arena-app-main {
+    padding-bottom: 1.5rem;
+  }
+}
+
+/* Consistent, low-contrast scrollbars for long squads, tables and menu panels. */
+* {
+  scrollbar-color: rgba(120, 144, 174, 0.35) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(120, 144, 174, 0.28);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 144, 174, 0.48);
+}
