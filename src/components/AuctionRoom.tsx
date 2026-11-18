@@ -15,7 +15,6 @@ import { resolveTeamLogoUrl } from '../lib/teamLogos';
 import {
   getBidIncrement,
   getMaxAllowableBid,
-  calculateAIMaxWillingToPay,
   shouldAIStopBidding,
   checkSquadRoleQuotas,
   calculateAuctionFinalStandings,
@@ -157,54 +156,59 @@ export default function AuctionRoom() {
     return () => clearInterval(interval);
   }, [auctionPhase, auctionIsPaused, auctionTimer, setAuctionTimer, handleSaleConclusion]);
 
-  // AI Bidding Engine Loop (Human-like pacing, valuation & multi-bot dueling)
+  // Every non-user franchise runs its own scouting, budget, squad-need and buy/pass decision.
+  // One selected bidder acts per round; the engine re-evaluates every team after each raise.
   useEffect(() => {
-    if (auctionPhase !== 'bidding' || auctionIsPaused || !currentPlayer) return;
+    if (auctionPhase !== 'bidding' || auctionIsPaused || !currentPlayer || auctionTimer <= 1) return;
 
     const nominatedPlayerId = currentPlayer.id;
     const bidAtSchedule = auctionCurrentBid;
     const leaderAtSchedule = auctionLeadingTeamId;
-    const currentTimer = auctionTimer;
+    const requiredNextBid = auctionLeadingTeamId
+      ? auctionCurrentBid + getBidIncrement(auctionCurrentBid)
+      : auctionCurrentBid;
 
-    const nextInc = getBidIncrement(auctionCurrentBid);
-    const requiredNextBid = auctionLeadingTeamId ? auctionCurrentBid + nextInc : auctionCurrentBid;
-
-    // Evaluate all AI franchises for this nominated player using Base Valuation + Random Variance + Role Need
-    const aiContenders = franchises
-      .filter((f) => f.id !== selectedFranchiseId && !withdrawnTeams.includes(f.id) && f.id !== auctionLeadingTeamId)
-      .map((f) => {
-        const maxValuation = calculateAIMaxWillingToPay(
+    const decisions = franchises
+      .filter((team) => team.id !== selectedFranchiseId && !withdrawnTeams.includes(team.id) && team.id !== auctionLeadingTeamId)
+      .map((team) => {
+        const aiState = franchiseAIStates.current.get(team.id) || createFranchiseAIState();
+        franchiseAIStates.current.set(team.id, aiState);
+        const decision = evaluateBid(
           currentPlayer,
-          f,
-          players,
-          auctionPoolIndex,
-          totalPlayersInPool
+          team,
+          auctionCurrentBid,
+          franchises,
+          auctionStateForAI,
+          aiState
         );
-        const stopCheck = shouldAIStopBidding(requiredNextBid, maxValuation, f, currentPlayer);
-        return {
-          franchise: f,
-          maxValuation,
-          canBid: !stopCheck.shouldStop,
-        };
+        const squadSafeCap = getMaxAllowableBid(team.purse, team.squad.length);
+        const hardCeiling = Math.min(decision.maximumBid, squadSafeCap, 250_000_000);
+        const targetBid = Math.max(requiredNextBid, decision.recommendedBid);
+        const stopCheck = shouldAIStopBidding(targetBid, hardCeiling, team, currentPlayer);
+        const canBid = decision.decision === 'BUY' && !stopCheck.shouldStop &&
+          team.squad.length < 25 && team.purse >= targetBid && targetBid <= hardCeiling;
+
+        if (!canBid) {
+          aiState.consecutivePasses = Math.min(30, aiState.consecutivePasses + 1);
+        }
+
+        return { team, aiState, decision, targetBid, hardCeiling, canBid };
       })
       .filter((entry) => entry.canBid)
-      .sort((a, b) => b.maxValuation - a.maxValuation);
+      .sort((a, b) => {
+        // A team with a stronger role need and higher conviction gets first response,
+        // while its own DNA still controls aggression and reaction time.
+        const priorityA = a.decision.confidence + (a.decision.aggression === 'Extreme' ? 8 : a.decision.aggression === 'High' ? 5 : 0);
+        const priorityB = b.decision.confidence + (b.decision.aggression === 'Extreme' ? 8 : b.decision.aggression === 'High' ? 5 : 0);
+        return priorityB - priorityA;
+      });
 
-    if (aiContenders.length === 0) return;
-
-    // Multi-bot rule: top 2 AI teams duel against each other (or against the user)
-    const top2 = aiContenders.slice(0, 2);
-    const nextBidder = top2[0];
+    const nextBidder = decisions[0];
     if (!nextBidder) return;
 
-    // Pacing rules:
-    // 15% chance of last-second snipe (waits until auctionTimer <= 2s)
-    // Otherwise human-like reaction delay between 1.2s and 3.5s
-    const isSnipe = Math.random() < 0.15 && currentTimer > 3;
-    const delay = isSnipe
-      ? Math.max(1200, (currentTimer - 2) * 1000 + Math.random() * 400)
-      : 1200 + Math.random() * 2300;
-
+    const thinkingDelay = getBidDelay(nextBidder.decision);
+    const remainingWindow = Math.max(350, (auctionTimer - 1) * 1000);
+    const delay = Math.min(thinkingDelay, remainingWindow);
     const timeout = setTimeout(() => {
       const latest = useGameStore.getState();
       if (
@@ -216,13 +220,18 @@ export default function AuctionRoom() {
         latest.auctionLeadingTeamId !== leaderAtSchedule
       ) return;
 
-      placeAuctionBid(nextBidder.franchise.id, requiredNextBid);
+      const result = placeAuctionBid(nextBidder.team.id, nextBidder.targetBid);
+      if (result.ok) {
+        nextBidder.aiState.fatigueLevel = Math.min(100, nextBidder.aiState.fatigueLevel + 7);
+        nextBidder.aiState.consecutivePasses = 0;
+      }
     }, delay);
 
     return () => clearTimeout(timeout);
   }, [
     auctionPhase,
     auctionIsPaused,
+    auctionTimer,
     currentPlayer,
     franchises,
     auctionLeadingTeamId,
@@ -231,10 +240,9 @@ export default function AuctionRoom() {
     auctionCurrentBid,
     auctionPoolIndex,
     totalPlayersInPool,
-    players,
+    auctionStateForAI,
     placeAuctionBid,
   ]);
-
   // User Bidding Calculations & Handlers
   const nextIncrement = getBidIncrement(auctionCurrentBid);
   const nextUserBidAmount = auctionLeadingTeamId ? auctionCurrentBid + nextIncrement : auctionCurrentBid;
