@@ -340,7 +340,7 @@ export default function PreMatch() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-[#258BFF] bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded">
-                  Match Day Squad & Toss
+                  {step === 'squad' ? 'STEP 1 OF 2 · PLAYING XI' : 'STEP 2 OF 2 · TOSS'}
                 </span>
                 <span className="text-[10px] font-bold text-[#9DAEC4]">
                   {currentMatch?.isPlayoff ? currentMatch.playoffType : `Match ${currentMatch?.matchNumber || 1}`}
@@ -361,7 +361,7 @@ export default function PreMatch() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-4">
+      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 pb-32 md:pb-6 space-y-4">
         
         {/* Conditions Card */}
         <div className="bg-[#10233D] rounded-2xl border border-white/10 p-4 shadow-xl space-y-3">
@@ -646,7 +646,7 @@ export default function PreMatch() {
                   disabled={!isValidXI || !isOpponentXIValid}
                   onClick={proceedToToss}
                   className={cn(
-                    "w-full py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg",
+                    "hidden md:flex w-full py-3 rounded-xl font-black text-sm transition-all items-center justify-center gap-2 shadow-lg",
                     isValidXI
                       ? "bg-[#258BFF] hover:bg-blue-600 text-white cursor-pointer active:scale-[0.99] shadow-blue-500/20"
                       : "bg-[#152C4D] text-[#9DAEC4]/50 cursor-not-allowed border border-white/5"
@@ -666,6 +666,20 @@ export default function PreMatch() {
                 )}
               </div>
             </div>
+          </div>
+          <div className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0B1A2E]/95 p-3 shadow-2xl backdrop-blur-xl md:hidden">
+            <div className="min-w-0 flex-1">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-[#839AB7]">Playing XI</div>
+              <div className="text-sm font-black tabular-nums text-white">{selectedIds.length} / 11 selected</div>
+            </div>
+            <button
+              type="button"
+              disabled={!isValidXI || !isOpponentXIValid}
+              onClick={proceedToToss}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#258BFF] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg transition-colors hover:bg-blue-500 disabled:pointer-events-none disabled:opacity-40"
+            >
+              Proceed to toss <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         ) : (
           /* TOSS STEP */
