@@ -69,7 +69,7 @@ function isHeadDominantMesh(mesh: THREE.SkinnedMesh): boolean {
   if (/(head|face|skin)/.test(meshName)) return true;
   const names = mesh.skeleton.bones.map((bone) => (bone.name || '').toLowerCase());
   const headIndexes = new Set<number>();
-  names.forEach((name, index) => { if (/(^|[_ .-])(head|face)([_ .-]|$)/.test(name) || name === 'head' || name === 'mixamorig:head') headIndexes.add(index); });
+  names.forEach((name, index) => { if (name.includes('head') || name.includes('face')) headIndexes.add(index); });
   if (!headIndexes.size) return false;
   const skinIndex = mesh.geometry.attributes.skinIndex;
   const skinWeight = mesh.geometry.attributes.skinWeight;
