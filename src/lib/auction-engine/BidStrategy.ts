@@ -20,7 +20,8 @@ export function calculateBidStrategy(
   franchise: Franchise,
   dna: FranchiseDNA,
   currentBid: number,
-  confidence: ConfidenceResult
+  confidence: ConfidenceResult,
+  valuationCap: number = franchise.purse
 ): BidDecision {
   
   // 1. Determine Aggression based on Confidence
@@ -41,36 +42,24 @@ export function calculateBidStrategy(
   dropoutProbability += (100 - dna.riskTolerance) * 0.002;
   dropoutProbability = clamp(dropoutProbability, 0.01, 0.99);
 
-  // 3. Max Bid (How far will they go?)
-  // Rather than just adding fixed amounts, it scales with purse and confidence
-  const maxBidExtension = 
-    aggression === 'Extreme' ? 30_000_0000 : 
-    aggression === 'High' ? 15_000_0000 : 
-    aggression === 'Medium' ? 5_000_0000 : 
-    2_500_000;
-  
-  const maximumBid = clamp(currentBid + maxBidExtension, player.basePrice, franchise.purse);
+  // 3. Hard walk-away ceiling: market evidence, remaining purse and minimum squad reserve.
+  // Aggression changes willingness to reach the ceiling, never the ceiling itself.
+  const minimumSquadReserve = Math.max(0, 18 - franchise.squad.length - 1) * 2_000_000;
+  const purseSafeCap = Math.max(0, franchise.purse - minimumSquadReserve);
+  const hardCap = Math.max(0, Math.min(franchise.purse, purseSafeCap, valuationCap));
+  const conviction = 0.78 + (confidence.score / 100) * 0.22;
+  const convictionCap = Math.floor(hardCap * conviction);
+  const maximumBid = Math.min(hardCap, Math.max(player.basePrice || 2_000_000, convictionCap));
 
-  // 4. Strategic Jump Bids
-  // Instead of always bidding the minimum increment, high aggression teams
-  // might randomly jump the bid to intimidate others.
-  let jumpBidAmount = currentBid < 50_000_000 ? 2_500_000 : 5_000_000; // Standard increment
-  
-  if (dna.aggression > 80 && aggression === 'Extreme' && Math.random() > 0.6) {
-    // Intimidation Jump Bid!
-    jumpBidAmount = 20_000_000; // Jump by 2Cr!
-  } else if (dna.aggression > 70 && aggression === 'High' && Math.random() > 0.8) {
-    jumpBidAmount = 10_000_000; // Jump by 1Cr
-  }
-
-  const recommendedBid = clamp(currentBid + jumpBidAmount, player.basePrice, maximumBid);
-
+  // 4. Keep raises close to the published auction increment; avoid multi-crore jumps.
+  const increment = currentBid < 10_000_000 ? 500_000 : currentBid < 20_000_000 ? 1_000_000 : currentBid < 50_000_000 ? 2_000_000 : 2_500_000;
+  const recommendedBid = Math.min(maximumBid, currentBid + increment);
   // 5. Final Decision
   // They BUY if they haven't exceeded max bid and they pass the probabilistic check
   const passesProbabilisticCheck = Math.random() > dropoutProbability;
   
   let decision: 'BUY' | 'PASS' = 'PASS';
-  if (currentBid < maximumBid && passesProbabilisticCheck && franchise.purse >= recommendedBid) {
+  if (recommendedBid > currentBid && currentBid < maximumBid && passesProbabilisticCheck && franchise.purse >= recommendedBid) {
     decision = 'BUY';
   }
 
