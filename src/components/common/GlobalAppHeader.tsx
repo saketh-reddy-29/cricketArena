@@ -194,10 +194,8 @@ export default function GlobalAppHeader() {
             onClick={() => handleNavClick('home')}
             className="flex items-center gap-3 cursor-pointer group"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#258BFF] via-[#13A875] to-[#F5B82E] p-0.5 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-[#071426] rounded-[10px] flex items-center justify-center">
-                <Trophy className="w-4 h-4 text-[#F5B82E]" />
-              </div>
+            <div className="h-10 w-10 shrink-0 transition-transform group-hover:scale-105">
+              <img src="/cricket-arena-logo.svg" alt="Cricket Arena crest" className="h-full w-full object-contain drop-shadow-lg" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -209,7 +207,7 @@ export default function GlobalAppHeader() {
                 </span>
               </div>
               <div className="text-[10px] text-[#9DAEC4] font-medium tracking-wide">
-                AAA Sports Simulation & Management
+                Franchise cricket • Matchday simulation • Dynasty mode
               </div>
             </div>
           </div>
