@@ -177,6 +177,14 @@ const PLAYER_ALIASES: Record<string, string> = {
   'Mukul Choudhary': 'Mukesh Choudhary',
   'Varun Chakaravarthy': 'Varun Chakravarthy',
 };
+const UNCAPPED_2027_GAME_CLASSIFICATION = new Set([
+  'Anshul Kamboj','Ayush Mhatre','Gurjapneet Singh','Kartik Sharma','Ramakrishna Ghosh','Urvil Patel',
+  'Ashutosh Sharma','Auqib Dar','Madhav Tiwari','Sameer Rizvi','Tripurana Vijay','Vipraj Nigam','Zeeshan Ansari',
+  'Anuj Rawat','Ashok Sharma','Gurnoor Singh Brar','Kumar Kushagra','Manav Suthar','Nishant Sindhu',
+  'Mohd. Arshad Khan','Digvesh Rathi','Harnoor Pannu','Musheer Khan','Priyansh Arya','Suryansh Shedge',
+  'Aman Rao Perala','Yash Raj Punja','Abhinandan Singh','Kanishk Chouhan','Rasikh Dar','Suyash Sharma',
+  'Vicky Ostwal','Krains Fuletra','Praful Hinge','Salil Arora','Smaran Ravichandran','Shivang Kumar',
+]);
 
 export function normaliseIplName(name: string): string {
   return (PLAYER_ALIASES[name] || name).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -222,10 +230,19 @@ export function prepareIpl2027Players(sourcePlayers: Player[]): Player[] {
   [...officialNames, ...releasedNames].forEach(({ name, overseas, seed }) => {
     const key = normaliseIplName(name);
     const existing = unique.get(key);
+    const lastSalaryLakh = 'lastSalaryLakh' in (releasedNames.find((entry) => normaliseIplName(entry.name) === key) || {}) 
+      ? (releasedNames.find((entry) => normaliseIplName(entry.name) === key) as { lastSalaryLakh: number }).lastSalaryLakh
+      : undefined;
+    const isCapped = !UNCAPPED_2027_GAME_CLASSIFICATION.has(name);
     if (existing) {
-      unique.set(key, { ...existing, nationality: overseas ? 'Overseas' : 'Indian' });
+      unique.set(key, {
+        ...existing,
+        nationality: overseas ? 'Overseas' : 'Indian',
+        lastIplSalaryLakh: lastSalaryLakh ?? existing.lastIplSalaryLakh,
+        isCapped,
+      });
     } else {
-      unique.set(key, makeRosterFallback(name, overseas, key || seed));
+      unique.set(key, { ...makeRosterFallback(name, overseas, key || seed), lastIplSalaryLakh, isCapped });
     }
   });
 
