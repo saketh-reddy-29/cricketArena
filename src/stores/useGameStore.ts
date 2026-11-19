@@ -898,27 +898,32 @@ export const useGameStore = create<GameStore>()(
       setAuctionPaused: (isPaused) => set({ auctionIsPaused: isPaused }),
 
       resetAuction: () => set((state) => {
-        const currentFranchises = state.franchises.map((f) => ({
-          ...f,
-          purse: 1200000000,
-          squad: [],
-          overseasCount: 0,
-        }));
+        // Reset only the auction session. Never wipe franchise squads, retained
+        // contracts, purse balances, or completed career ownership.
+        const assignedIds = new Set(state.franchises.flatMap((franchise) => franchise.squad));
+        const existingPool = state.auctionPool.length > 0
+          ? state.auctionPool
+          : state.players.filter((player) => !assignedIds.has(player.id)).map((player) => player.id);
+        const auctionPool = Array.from(new Set(existingPool)).filter((id) => !assignedIds.has(id));
+        const ownershipMap = { ...state.playerOwnershipMap };
+        auctionPool.forEach((id) => { ownershipMap[id] = { status: 'AVAILABLE' }; });
+        const firstPlayerId = auctionPool[0] || null;
+        if (firstPlayerId) ownershipMap[firstPlayerId] = { status: 'CURRENTLY_NOMINATED' };
+        const firstPlayer = state.players.find((player) => player.id === firstPlayerId);
         return {
-          franchises: currentFranchises,
-          auctionPool: [],
+          auctionPool,
           auctionPoolIndex: 0,
-          auctionCurrentBid: 0,
+          auctionCurrentBid: firstPlayer?.basePrice || 0,
           auctionLeadingTeamId: null,
-          auctionPhase: 'idle',
+          auctionPhase: firstPlayerId ? 'bidding' : 'completed',
           auctionRound: 1,
           auctionTimer: 10,
           auctionIsPaused: false,
           withdrawnTeams: [],
-          playerOwnershipMap: {},
+          playerOwnershipMap: ownershipMap,
           auctionHistory: [],
           unsoldPlayerIds: [],
-          currentAuctionPlayerId: null,
+          currentAuctionPlayerId: firstPlayerId,
           bidLog: [],
         };
       }),
