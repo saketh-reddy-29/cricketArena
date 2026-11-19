@@ -89,10 +89,10 @@ export default function AuctionRoom() {
 
   // Pre-flight initialization on mount
   useEffect(() => {
-    if (!auctionPool || auctionPool.length === 0) {
+    if (auctionPool.length === 0 || auctionPhase === 'idle') {
       initAuction('IPL');
     }
-  }, [auctionPool, initAuction]);
+  }, [auctionPool, auctionPhase, initAuction]);
 
   const currentPlayerId = auctionPool[auctionPoolIndex] || null;
   const currentPlayer = useMemo(() => {
