@@ -1,4 +1,4 @@
-# Cricket Arena (CrexArena) — Advanced Ball-by-Ball Engine & Tactical Field Simulator
+# Cricket Arena — Advanced Ball-by-Ball Engine & Tactical Field Simulator
 
 A broadcast-quality cricket match simulation engine and interactive 2D field map with an optional rigged 3D match view, built with **React**, **TypeScript**, **Tailwind CSS**, **Framer Motion**, and **HTML5 Canvas / SVG**. The 3D view is visual-only; it uses the existing delivery and fielder playback state and does not change match rules or engine behavior.
 
@@ -11,9 +11,9 @@ In the live match field, use **2D / 3D** to switch views. The 2D field remains t
 > **NOTE FOR AI AGENTS & DEVELOPERS**: Read this section to understand the entire architecture without opening and inspecting multiple files.
 
 ```
-CrexArena/
+Cricket Arena/
 ├── src/
-│   ├── components/                 # UI Layer (Unified CREX Design System)
+│   ├── components/                 # UI Layer (Unified Cricket Arena Design System)
 │   │   ├── common/
 │   │   │   ├── GlobalNavBar.tsx    # Global broadcast header with routes & persistence
 │   │   │   └── SettingsModal.tsx   # Career persistence, simulation speed & reset controls
@@ -22,7 +22,7 @@ CrexArena/
 │   │   │   └── TeamStatsView.tsx   # Team performance, win rates, NRR & form streaks
 │   │   ├── league/
 │   │   │   ├── ScheduleTab.tsx     # Fixture calendar with match status, scores & auto-sim
-│   │   │   ├── LeaderboardTab.tsx  # CREX points table with NRR, Test PCT% & recent form pills
+│   │   │   ├── LeaderboardTab.tsx  # Cricket Arena points table with NRR, Test PCT% & recent form pills
 │   │   │   └── QualificationTab.tsx# Monte Carlo qualification odds & playoff bracket projections
 │   │   ├── TopMatchesCarousel.tsx  # Horizontal match carousel with format/status filter pills
 │   │   ├── CricketActionVisualizer.tsx # 2D/3D field, ball trajectory, fielders, AI Captain HUD
@@ -30,8 +30,8 @@ CrexArena/
 │   │   ├── PlayerSelectionDrawer.tsx # Modal drawer for manual openers, batter & bowler selection
 │   │   ├── LiveMatchCenter.tsx     # Central match coordinator, recent delivery ribbon, bowler stamina
 │   │   ├── PreMatch.tsx            # Match-Day Team Selection & Coin Toss with fatigue & pitch adaptation
-│   │   ├── PlayingXIBuilder.tsx    # CREX Match-Day Playing XI builder with role balance meters
-│   │   ├── ArenaHub.tsx            # Unified tournament hub with CREX pill navigation
+│   │   ├── PlayingXIBuilder.tsx    # Cricket Arena Match-Day Playing XI builder with role balance meters
+│   │   ├── ArenaHub.tsx            # Unified tournament hub with Cricket Arena pill navigation
 │   │   ├── TeamSelection.tsx       # Tournament franchise / international team picker
 │   │   └── BoardSelection.tsx      # 15-man tournament squad builder with AI squad advisor
 │   │
@@ -150,7 +150,7 @@ Every delivery progresses through **one authoritative, immutable pipeline**. A d
 ```
 
 ### The Immutable `DeliveryResult` Contract
-Defined in [`src/types/delivery.ts`](file:///c:/Users/saket/Downloads/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/src/types/delivery.ts):
+Defined in [`src/types/delivery.ts`](file:///c:/Users/saket/Downloads/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/src/types/delivery.ts):
 - `id`: Unique delivery UUID
 - `strikerId`, `nonStrikerId`, `bowlerId`
 - `legalBall`: `boolean` (false on Wide / No Ball)
@@ -168,7 +168,7 @@ Defined in [`src/types/delivery.ts`](file:///c:/Users/saket/Downloads/CrexArena-
 
 ## 🧠 AI Tactical Engines & Decision Matrix
 
-### 1. Batter Decision Engine ([`src/engine/ai/BatterDecisionEngine.ts`](file:///c:/Users/saket/Downloads/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/src/engine/ai/BatterDecisionEngine.ts))
+### 1. Batter Decision Engine ([`src/engine/ai/BatterDecisionEngine.ts`](file:///c:/Users/saket/Downloads/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/src/engine/ai/BatterDecisionEngine.ts))
 - **Settledness ($0-100\%$)**:
   - New incoming batter begins tentative ($10-18\%$).
   - Handled legal balls safely increase settledness ($+1.2$ for dots, $+2.4$ for singles, $+3.5$ for boundaries).
@@ -184,7 +184,7 @@ Defined in [`src/types/delivery.ts`](file:///c:/Users/saket/Downloads/CrexArena-
   - `ACCELERATE`: Maximum aggression with high boundary rate and proportionate dismissal risk.
 - **Collapse Arrest**: When $\ge 3$ early wickets fall, batters automatically transition to `SURVIVAL` or `DEFENSIVE` to stabilize partnerships.
 
-### 2. Bowling Plan Engine ([`src/engine/ai/BowlingPlanEngine.ts`](file:///c:/Users/saket/Downloads/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/src/engine/ai/BowlingPlanEngine.ts))
+### 2. Bowling Plan Engine ([`src/engine/ai/BowlingPlanEngine.ts`](file:///c:/Users/saket/Downloads/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/src/engine/ai/BowlingPlanEngine.ts))
 Selects intelligent plans based on bowler style, batter handedness (RHB/LHB), phase, and match situation:
 - `ATTACK_STUMPS`: Hard length attacking top of off/middle.
 - `FULL_OUTSIDE_OFF`: Tempting drive into the slip cordon.
@@ -194,7 +194,7 @@ Selects intelligent plans based on bowler style, batter handedness (RHB/LHB), ph
 - `SPIN_ATTACK` & `DEFENSIVE_LINE`: Flight vs drift variation.
 - `DOT_BALL_PRESSURE`: Choking singles.
 
-### 3. AI Captain Engine ([`src/engine/ai/AICaptainEngine.ts`](file:///c:/Users/saket/Downloads/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/src/engine/ai/AICaptainEngine.ts))
+### 3. AI Captain Engine ([`src/engine/ai/AICaptainEngine.ts`](file:///c:/Users/saket/Downloads/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/src/engine/ai/AICaptainEngine.ts))
 - **Bowler Rotation**: Respects format limits (T20: 4 overs, ODI: 10 overs, Test: uncapped) and avoids back-to-back overs.
 - **Triggers**:
   - `OVER_END`: Selects fresh bowler and plan.
@@ -205,7 +205,7 @@ Selects intelligent plans based on bowler style, batter handedness (RHB/LHB), ph
 
 ## 🎮 Player vs AI Team Control Modes
 
-In [`src/components/CricketActionVisualizer.tsx`](file:///c:/Users/saket/Downloads/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/src/components/CricketActionVisualizer.tsx) & [`src/components/LiveMatchCenter.tsx`](file:///c:/Users/saket/Downloads/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/src/components/LiveMatchCenter.tsx):
+In [`src/components/CricketActionVisualizer.tsx`](file:///c:/Users/saket/Downloads/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/src/components/CricketActionVisualizer.tsx) & [`src/components/LiveMatchCenter.tsx`](file:///c:/Users/saket/Downloads/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/src/components/LiveMatchCenter.tsx):
 
 | Mode | Bowling Team Control | Batting Team Control | AI Overrides? |
 |---|---|---|---|
@@ -241,7 +241,7 @@ All factors are strictly bounded within $[0.45, 1.80]$.
   - Format selector (`T20`, `ODI`, `TEST`), CRR, chase target & RRR, and match status.
   - Integrated playback controls: Play/Pause, Speed (`1x`, `1.5x`, `2x`), Replay last ball, Bowl/Skip.
   - Eliminates redundant cards and ensures the field map is the central focus.
-- **Interactive Player Selection Drawer ([`src/components/PlayerSelectionDrawer.tsx`](file:///c:/Users/saket/Downloads/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/CrexArena-800797668a7b096a62f156dda84f4f23778a9515/src/components/PlayerSelectionDrawer.tsx))**:
+- **Interactive Player Selection Drawer ([`src/components/PlayerSelectionDrawer.tsx`](file:///c:/Users/saket/Downloads/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/Cricket Arena-800797668a7b096a62f156dda84f4f23778a9515/src/components/PlayerSelectionDrawer.tsx))**:
   - Modal drawer overlay for user-controlled team actions.
   - Openers pair selection with striker / non-striker assignment.
   - Incoming batter selection (automatically filters out dismissed batters).
