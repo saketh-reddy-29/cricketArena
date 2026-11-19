@@ -134,7 +134,7 @@ export const IPL_2026_SEASON_LEADERS: Record<string, {
   'Virat Kohli': { team: 'RCB', matches: 16, innings: 16, runs: 675, average: 56.25, strikeRate: 165.85, fours: 73, sixes: 25 },
   'Heinrich Klaasen': { team: 'SRH', matches: 15, innings: 15, runs: 624, average: 48.00, strikeRate: 160.00, fours: 48, sixes: 31 },
   'Ishan Kishan': { team: 'SRH', matches: 15, innings: 15, runs: 602, average: 40.13, strikeRate: 182.42, fours: 60, sixes: 32 },
-  'KL Rahul': { team: 'DC', matches: 14, innings: 14, runs: 593, average: 45.62, strikeRate: 174.41, fours: 56, sixes: 31 },
+  'KL Rahul': { team: 'DC', matches: 14, innings: 14, runs: 593, average: 45.62, strikeRate: 174.41, fours: 56, sixes: 31, highScore: 152 },
   'Abhishek Sharma': { team: 'SRH', matches: 15, innings: 15, runs: 563, average: 40.21, strikeRate: 204.73, fours: 50, sixes: 43 },
   'Mitchell Marsh': { team: 'LSG', matches: 13, innings: 13, runs: 563, average: 43.31, strikeRate: 163.19, fours: 51, sixes: 36 },
   'Jos Buttler': { team: 'GT', matches: 17, innings: 17, runs: 526, average: 37.57, strikeRate: 152.46, fours: 51, sixes: 26 },
@@ -212,7 +212,7 @@ export const IPL_2026_SEASON_LEADERS: Record<string, {
   'Anukul Roy': { team: 'KKR', matches: 14, innings: 7, runs: 52, average: 13.00, strikeRate: 133.33, fours: 3, sixes: 2 },
   'Marco Jansen': { team: 'PBKS', matches: 13, innings: 5, runs: 51, average: 12.75, strikeRate: 113.33, fours: 1, sixes: 3 },
   'Corbin Bosch': { team: 'MI', matches: 6, innings: 4, runs: 50, average: 50.00, strikeRate: 161.29, fours: 5, sixes: 2 },
-  'Rashid Khan': { team: 'GT', matches: 17, innings: 6, runs: 50, average: 12.50, strikeRate: 121.95, fours: 4, sixes: 2, wickets: 22 },
+  'Rashid Khan': { team: 'GT', matches: 17, innings: 6, runs: 50, average: 12.50, strikeRate: 121.95, fours: 4, sixes: 2 },
   'Kagiso Rabada': { team: 'GT', matches: 17, innings: 0, wickets: 29, bestBowling: '3/25' },
   'Bhuvneshwar Kumar': { team: 'RCB', matches: 17, innings: 0, wickets: 28 },
 };
