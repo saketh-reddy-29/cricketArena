@@ -1951,7 +1951,7 @@ export const useGameStore = create<GameStore>()(
           const now = new Date().toISOString();
 
           const payload: CloudSaveData = {
-            version: 3,
+            version: 4,
             user: state.authUser || {
               id: 'guest',
               email: 'guest@cricketarena.local',
@@ -1971,6 +1971,11 @@ export const useGameStore = create<GameStore>()(
               playerSeasonStats: state.playerSeasonStats,
               liveMatchState: state.liveMatchState,
               franchises: state.franchises,
+              playerOwnershipMap: state.playerOwnershipMap,
+              auctionPool: state.auctionPool,
+              auctionPoolIndex: state.auctionPoolIndex,
+              seasonNumber: state.seasonNumber,
+              seasonYear: state.seasonYear,
               seriesConfig: state.seriesConfig,
               activeTab: state.activeTab,
             },
@@ -2064,6 +2069,11 @@ export const useGameStore = create<GameStore>()(
             playerSeasonStats: state.playerSeasonStats,
             liveMatchState: state.liveMatchState,
             franchises: state.franchises,
+            playerOwnershipMap: state.playerOwnershipMap,
+            auctionPool: state.auctionPool,
+            auctionPoolIndex: state.auctionPoolIndex,
+            seasonNumber: state.seasonNumber,
+            seasonYear: state.seasonYear,
             seriesConfig: state.seriesConfig,
             activeTab: state.activeTab,
           },
