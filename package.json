@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "cricket-arena",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -46,5 +46,6 @@
     "typescript": "~5.8.2",
     "vite": "^6.2.3",
     "vitest": "^5.0.2"
-  }
+  },
+  "description": "Cricket Arena — franchise cricket, player auctions and 3D match simulation"
 }
