@@ -5,6 +5,8 @@ export interface Player {
   nationality: 'Indian' | 'Overseas';
   rating: number;
   basePrice: number;
+  /** Compatibility field used by auction display/valuation when present. */
+  price?: number;
   /** Previous official IPL contract salary, in lakh rupees; reference only. */
   lastIplSalaryLakh?: number;
   /** Official capped/uncapped classification when known. */
