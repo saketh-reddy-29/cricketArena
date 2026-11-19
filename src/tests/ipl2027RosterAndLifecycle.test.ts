@@ -9,6 +9,8 @@ import {
   normaliseIplName,
   prepareIpl2027Players,
 } from '../data/ipl2027';
+import { INITIAL_PLAYER_POOL } from '../data/players';
+import { INTL_PLAYER_POOL } from '../data/intlPlayers';
 import {
   isMegaAuctionDue,
   validateIplRetention,
@@ -57,6 +59,20 @@ describe('IPL 2027 official roster baseline', () => {
     expect(new Set(retainedIds).size).toBe(184);
     expect(auctionPool).toHaveLength(89);
     expect(auctionPool.some((id) => retainedIds.includes(id))).toBe(false);
+  });
+
+  it('normalizes the real game database without merging similarly named players', () => {
+    const prepared = prepareIpl2027Players([...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL]);
+    const franchises = getIpl2027Franchises(prepared, templates as any);
+    const auctionPool = getIpl2027AuctionPool(prepared);
+    const mukul = prepared.find((player) => normaliseIplName(player.name) === normaliseIplName('Mukul Choudhary'));
+    const mukesh = prepared.find((player) => normaliseIplName(player.name) === normaliseIplName('Mukesh Choudhary'));
+
+    expect(auctionPool).toHaveLength(89);
+    expect(franchises.reduce((sum, franchise) => sum + franchise.squad.length, 0)).toBe(184);
+    expect(mukul).toBeDefined();
+    expect(mukesh).toBeDefined();
+    expect(mukul?.id).not.toBe(mukesh?.id);
   });
 
   it('matches the published remaining purse total of ₹297.95 crore', () => {
