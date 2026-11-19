@@ -11,6 +11,7 @@ import { cn } from '../lib/utils';
 import { evaluateBid, AuctionState, FranchiseAIState, getBidDelay } from '../lib/auctionAI';
 import { getPlayerImage, handlePlayerImageError } from '../lib/playerImages';
 import { Player } from '../types/common';
+import { getIpl2027MarketData } from '../data/ipl2027';
 import { resolveTeamLogoUrl } from '../lib/teamLogos';
 import {
   getBidIncrement,
@@ -99,6 +100,7 @@ export default function AuctionRoom() {
   }, [currentPlayerId, players]);
 
   const leadingFranchise = franchises.find((f) => f.id === auctionLeadingTeamId);
+  const marketData = currentPlayer ? getIpl2027MarketData(currentPlayer.name) : null;
 
   // Auction progression calculations
   const totalPlayersInPool = auctionPool.length;
@@ -294,7 +296,7 @@ export default function AuctionRoom() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black tracking-widest text-[#F5B82E] uppercase">
-                  IPL 2026 MEGA AUCTION
+                  IPL 2027 PLAYER AUCTION
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-bold">
                   {auctionRound === 1 ? 'MAIN ROUND' : 'ACCELERATED ROUND'}
@@ -586,6 +588,20 @@ export default function AuctionRoom() {
                     </div>
                   </div>
 
+                  {marketData && (marketData.lastSalary || marketData.lastWinningBid || marketData.season2026) && (
+                    <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2.5 space-y-1.5">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-amber-300">Verified IPL market reference</div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-200">
+                        {marketData.lastSalary ? <span>Last listed salary: <strong className="text-white">₹{(marketData.lastSalary / 10000000).toFixed(2)} Cr</strong></span> : null}
+                        {marketData.lastWinningBid ? <span>2026 winning bid: <strong className="text-white">₹{(marketData.lastWinningBid / 10000000).toFixed(2)} Cr</strong></span> : null}
+                        {marketData.season2026?.runs ? <span>2026 IPL: <strong className="text-white">{marketData.season2026.runs} runs</strong>{marketData.season2026.average ? ` • Avg ${marketData.season2026.average}` : ''}</span> : null}
+                        {marketData.season2026?.wickets ? <span>2026 IPL: <strong className="text-white">{marketData.season2026.wickets} wickets</strong></span> : null}
+                        {marketData.season2026?.highScore ? <span>2026 high score: <strong className="text-white">{marketData.season2026.highScore}</strong></span> : null}
+                      </div>
+                      <div className="text-[9px] text-slate-400">Past salaries and winning bids are reference points, not official 2027 opening prices.</div>
+                    </div>
+                  )}
+
                   {/* Current Highest Bid Banner */}
                   <div className="p-4 rounded-2xl bg-gradient-to-br from-[#10233D] to-[#152C4D] border border-white/10 relative overflow-hidden">
                     <div className="flex items-center justify-between">
@@ -706,7 +722,7 @@ export default function AuctionRoom() {
                 <div className="flex items-center justify-center gap-3">
                   <Trophy className="w-12 h-12 text-[#F5B82E]" />
                   <div className="text-left">
-                    <h3 className="text-2xl font-black text-white">Mega Auction Completed!</h3>
+                    <h3 className="text-2xl font-black text-white">Player Auction Completed!</h3>
                     <p className="text-xs text-[#9DAEC4]">
                       All franchises have completed their squads. Best Playing XIs & final ratings have been computed.
                     </p>
