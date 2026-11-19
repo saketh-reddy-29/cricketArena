@@ -292,10 +292,10 @@ export function normaliseIplName(name: string): string {
 
 function playerRecordScore(player: Player): number {
   const extra = player as Player & { stats?: Record<string, number>; matches?: number; runs?: number; wickets?: number };
-  const stats = extra.stats || {};
-  return (player.careerStats?.matches || 0) * 4 + (extra.matches || stats.matches || 0) * 3
-    + (player.careerStats?.runs || extra.runs || stats.runs || 0) / 100
-    + (player.careerStats?.wickets || extra.wickets || stats.wickets || 0);
+  const stats = extra.stats as Record<string, number> | undefined;
+  return (player.careerStats?.matches || 0) * 4 + (extra.matches || stats?.matches || 0) * 3
+    + (player.careerStats?.runs || extra.runs || stats?.runs || 0) / 100
+    + (player.careerStats?.wickets || extra.wickets || stats?.wickets || 0);
 }
 
 function makeRosterFallback(name: string, overseas: boolean, idSeed: string): Player {
@@ -342,7 +342,7 @@ export function prepareIpl2027Players(sourcePlayers: Player[]): Player[] {
         isCapped,
       });
     } else {
-      unique.set(key, { ...makeRosterFallback(name, overseas, key || seed), lastIplSalaryLakh, isCapped });
+      unique.set(key, { ...makeRosterFallback(name, overseas, key || seed), lastIplSalaryLakh: lastSalaryLakh, isCapped });
     }
   });
 
