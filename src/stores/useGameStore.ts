@@ -1034,10 +1034,14 @@ export const useGameStore = create<GameStore>()(
         const team = state.franchises.find((entry) => entry.id === teamId);
         if (!team?.squad.includes(playerId)) return { ok: false, reason: 'That player is not in your squad.' };
         const player = state.players.find((entry) => entry.id === playerId);
+        const releasedContractValue = state.playerOwnershipMap[playerId]?.price || 0;
         set((current) => ({
           franchises: current.franchises.map((entry) => entry.id !== teamId ? entry : {
-            ...entry, squad: entry.squad.filter((id) => id !== playerId),
+            ...entry,
+            squad: entry.squad.filter((id) => id !== playerId),
             overseasCount: Math.max(0, entry.overseasCount - (player?.nationality === 'Overseas' ? 1 : 0)),
+            // Releasing a contracted player frees that amount back into the team's purse.
+            purse: Math.min(1_300_000_000, entry.purse + releasedContractValue),
           }),
           auctionPool: Array.from(new Set([...current.auctionPool, playerId])),
           playerOwnershipMap: { ...current.playerOwnershipMap, [playerId]: { status: 'AVAILABLE' } },
@@ -1061,15 +1065,29 @@ export const useGameStore = create<GameStore>()(
         const outgoing = state.players.find((player) => player.id === ownPlayerId);
         const incoming = state.players.find((player) => player.id === otherPlayerId);
         if (!outgoing || !incoming) return { ok: false, reason: 'One of the selected players is unavailable.' };
+        const outgoingContractValue = state.playerOwnershipMap[ownPlayerId]?.price || 0;
+        const incomingContractValue = state.playerOwnershipMap[otherPlayerId]?.price || 0;
+        const ownPurseDelta = outgoingContractValue - incomingContractValue;
+        const otherPurseDelta = incomingContractValue - outgoingContractValue;
         set((current) => ({
           franchises: current.franchises.map((team) => {
             if (team.id === ownTeamId) {
               const squad = team.squad.map((id) => id === ownPlayerId ? otherPlayerId : id);
-              return { ...team, squad, overseasCount: calculateOverseasCount(squad, current.players) };
+              return {
+                ...team,
+                squad,
+                overseasCount: calculateOverseasCount(squad, current.players),
+                purse: Math.max(0, Math.min(1_300_000_000, team.purse + ownPurseDelta)),
+              };
             }
             if (team.id === otherTeamId) {
               const squad = team.squad.map((id) => id === otherPlayerId ? ownPlayerId : id);
-              return { ...team, squad, overseasCount: calculateOverseasCount(squad, current.players) };
+              return {
+                ...team,
+                squad,
+                overseasCount: calculateOverseasCount(squad, current.players),
+                purse: Math.max(0, Math.min(1_300_000_000, team.purse + otherPurseDelta)),
+              };
             }
             return team;
           }),
