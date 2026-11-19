@@ -249,11 +249,11 @@ const PLAYER_ROLE_OVERRIDES: Record<string, Player['role']> = {
   'Gurnoor Singh Brar': 'Bowler', 'Mohammad Siraj': 'Bowler', 'Mohd. Arshad Khan': 'All-rounder',
   'R. Sai Kishore': 'Bowler', 'Tom Banton': 'Wicketkeeper', 'Digvesh Rathi': 'Bowler',
   'Harnoor Pannu': 'Batsman', 'Musheer Khan': 'All-rounder', 'Yash Thakur': 'Bowler',
-  'Aman Rao Perala': 'Batsman', 'Yash Raj Punja': 'Bowler', 'Yash Dayal': 'Bowler', 'Rasikh Dar': 'Bowler', 'Yash Dayal': 'Bowler',
+  'Aman Rao Perala': 'Batsman', 'Yash Raj Punja': 'Bowler', 'Yash Dayal': 'Bowler', 'Rasikh Dar': 'Bowler',
   'Ajay Mandal': 'All-rounder', 'Luvnith Sisodia': 'Wicketkeeper', 'Tejasvi Singh': 'Wicketkeeper',
   'Atharva Ankolekar': 'All-rounder', 'Mahipal Lamror': 'All-rounder', 'Mitch Owen': 'All-rounder',
   'Pravin Dubey': 'Bowler', 'Emanjot Chahal': 'Bowler', 'Yudhvir Charak': 'All-rounder',
-  'Mohammad Izhar': 'Bowler', 'AM Ghazanfar': 'Bowler', 'Mahipal Lamror': 'All-rounder',
+  'Mohammad Izhar': 'Bowler', 'AM Ghazanfar': 'Bowler',
 };
 
 const PLAYER_ALIASES: Record<string, string> = {
