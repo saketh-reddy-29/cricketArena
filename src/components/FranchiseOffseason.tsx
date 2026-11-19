@@ -164,7 +164,7 @@ export default function FranchiseOffseason() {
             <div>
               <div className="text-[10px] font-black uppercase tracking-widest text-amber-300">Four-season milestone</div>
               <h2 className="mt-1 text-xl font-black text-white">Mega auction retentions</h2>
-              <p className="mt-1 text-xs text-slate-300">Choose up to six players to keep. IPL-style limits: max five capped and max two uncapped players.</p>
+              <p className="mt-1 text-xs text-slate-300">Choose up to six players to keep, or leave the list empty to release the entire squad. IPL-style limits: max five capped and max two uncapped players.</p>
             </div>
             <button type="button" onClick={selectDefaultRetention} disabled={!seasonComplete} className="rounded-xl border border-amber-300/30 px-3 py-2 text-xs font-bold text-amber-200 hover:bg-amber-300/10 disabled:opacity-40">Suggest strongest six</button>
           </div>
@@ -195,7 +195,7 @@ export default function FranchiseOffseason() {
           <p className="mt-1 text-xs text-slate-400">{megaAuctionDue ? 'Unretained players from all teams will enter the auction pool.' : 'Your current squad remains intact. Released and unsold players enter the mini-auction pool.'}</p>
           <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500"><Wallet className="h-3.5 w-3.5" /> Next auction pool: {auctionPool.length} players currently listed</div>
         </div>
-        <button type="button" onClick={handleNextSeason} disabled={!seasonComplete || (megaAuctionDue && (!retainedIds.length || !retentionCheck.ok))} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-300 to-yellow-500 px-5 py-3 text-sm font-black text-[#071426] shadow-lg shadow-amber-500/10 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40">
+        <button type="button" onClick={handleNextSeason} disabled={!seasonComplete || (megaAuctionDue && !retentionCheck.ok)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-300 to-yellow-500 px-5 py-3 text-sm font-black text-[#071426] shadow-lg shadow-amber-500/10 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40">
           {megaAuctionDue ? <RefreshCw className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
           Start {seasonYear + 1} season
         </button>
