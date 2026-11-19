@@ -657,8 +657,9 @@ export const useGameStore = create<GameStore>()(
             ownershipMap[pId] = {
               status: 'RETAINED',
               teamId: f.id,
-              price: pl?.basePrice || 0,
-              timestamp: Date.now(),
+              // Preserve published retained-contract allocations and previously won bid prices.
+              price: state.playerOwnershipMap[pId]?.price ?? pl?.basePrice ?? 0,
+              timestamp: state.playerOwnershipMap[pId]?.timestamp ?? Date.now(),
             };
           });
         });
@@ -992,8 +993,6 @@ export const useGameStore = create<GameStore>()(
         auctionLeadingTeamId: null,
         auctionPhase: 'idle',
         auctionRound: 1,
-        auctionHistory: [],
-        unsoldPlayerIds: [],
         playerOwnershipMap,
         seasonNumber: 1,
         seasonYear: 2027,
@@ -2022,7 +2021,7 @@ export const useGameStore = create<GameStore>()(
         const state = get();
         const franchise = state.franchises.find(f => f.id === state.selectedFranchiseId);
         const payload: CloudSaveData = {
-          version: 3,
+          version: 4,
           user: state.authUser || {
             id: 'guest',
             email: 'guest@cricketarena.local',
