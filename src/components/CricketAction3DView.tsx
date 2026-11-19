@@ -77,6 +77,7 @@ export interface CricketAction3DViewProps {
   /** Match format (IPL | T20 | ODI | TEST) - decides whites vs coloured kit */
   matchFormat?: string;
   initialCameraMode?: CameraViewMode;
+  onCameraModeChange?: (mode: CameraViewMode) => void;
   initialDay?: boolean;
   /** Bowling style text of the current bowler ('Right-arm fast', 'Left-arm orthodox' ...) */
   bowlerStyle?: string;
