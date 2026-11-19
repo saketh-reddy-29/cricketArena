@@ -265,7 +265,6 @@ const PLAYER_ALIASES: Record<string, string> = {
   'R.S. Ambrish': 'R.S. Ambrish',
   'AM Ghazanfar': 'Allah Mohammad Ghazanfar',
   'Mahipal Lamror': 'Mahipal Lomror',
-  'Mukul Choudhary': 'Mukesh Choudhary',
   'Varun Chakaravarthy': 'Varun Chakravarthy',
 };
 const UNCAPPED_2027_GAME_CLASSIFICATION = new Set([
