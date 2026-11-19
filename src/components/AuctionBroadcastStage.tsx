@@ -8,6 +8,7 @@ import type { Player } from '../types/common';
 import { getPlayerAvatar } from '../lib/playerImages';
 import { CharacterInstance, CharacterErrorBoundary } from '../characters/CharacterInstance';
 import { getBidIncrement } from '../lib/iplAuctionEngine';
+import PerformanceGovernor from '../3d/PerformanceGovernor';
 
 const AUCTION_CHARACTER_MODEL = '/models/cricket-arena/cartoon_character_3d_model.glb';
 
@@ -781,7 +782,7 @@ export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps)
       }
     >
       <div className="pointer-events-none absolute left-4 top-3 z-20 rounded-lg border border-cyan-300/40 bg-[#071426]/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 backdrop-blur">
-        CRIC ARENA · LIVE AUCTION BROADCAST
+        CRICKET ARENA · LIVE AUCTION BROADCAST
       </div>
       <div className="pointer-events-none absolute right-24 top-3 z-20 flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
         <span className="h-2 w-2 rounded-full bg-white animate-pulse" /> LIVE
@@ -795,11 +796,13 @@ export default function AuctionBroadcastStage(props: AuctionBroadcastStageProps)
         {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
       </button>
       <Canvas
-        dpr={[0.8, 1.2]}
+        frameloop="demand"
+        dpr={[0.75, 1.1]}
         shadows={false}
-        gl={{ antialias: true, powerPreference: 'high-performance' }}
+        gl={{ antialias: false, powerPreference: 'low-power' }}
         camera={{ position: [0, 5.8, 16.0], fov: 48, near: 0.1, far: 100 }}
       >
+        <PerformanceGovernor targetFPS={30} />
         <AuctionRoomScene {...props} />
       </Canvas>
 
