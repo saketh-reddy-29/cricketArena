@@ -52,10 +52,10 @@ try {
           delete parsed.state.stateHistory;
           delete parsed.state.auctionHistory;
           delete parsed.state.bidLog;
-          window.localStorage.setItem('cricket-arena-v3', JSON.stringify(parsed));
+          window.localStorage.setItem('cricket-arena-v4', JSON.stringify(parsed));
         }
       } catch {
-        window.localStorage.removeItem('cricket-arena-v3');
+        window.localStorage.removeItem('cricket-arena-v4');
       }
     }
   }
@@ -140,7 +140,6 @@ const INITIAL_FRANCHISES: Franchise[] = [
 const PLAYER_NAME_ALIASES: Record<string, string> = {
   'Ishant Kishan': 'Ishan Kishan',
   'Liam Ferguson': 'Lockie Ferguson',
-  'Mukul Choudhary': 'Mukesh Choudhary',
   'Varun Chakaravarthy': 'Varun Chakravarthy',
 };
 
@@ -181,6 +180,32 @@ export interface PlayerOwnershipRecord {
   price?: number;
   timestamp?: number;
 }
+
+const INITIAL_IPL_PLAYERS = prepareIpl2027Players([...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL]);
+const INITIAL_IPL_FRANCHISES = getIpl2027Franchises(INITIAL_IPL_PLAYERS, INITIAL_FRANCHISES);
+const INITIAL_IPL_AUCTION_POOL = getIpl2027AuctionPool(INITIAL_IPL_PLAYERS);
+
+function buildInitialIplOwnershipMap(players: Player[], franchises: Franchise[]): Record<string, PlayerOwnershipRecord> {
+  const ownership: Record<string, PlayerOwnershipRecord> = {};
+  franchises.forEach((team) => {
+    const committed = (IPL_2027_FRANCHISE_SPEND[team.shortName]?.spentCr || 0) * 10_000_000;
+    const roster = team.squad.map((id) => players.find((player) => player.id === id))
+      .filter((player): player is Player => Boolean(player));
+    const weight = roster.reduce((sum, player) => sum + Math.max(1, player.rating || 50), 0);
+    roster.forEach((player) => {
+      ownership[player.id] = {
+        status: 'RETAINED',
+        teamId: team.id,
+        // Contract allocation is proportional for simulation; official team spend remains exact.
+        price: weight ? Math.round(committed * Math.max(1, player.rating || 50) / weight) : 0,
+        timestamp: Date.now(),
+      };
+    });
+  });
+  return ownership;
+}
+
+const INITIAL_IPL_PLAYER_OWNERSHIP = buildInitialIplOwnershipMap(INITIAL_IPL_PLAYERS, INITIAL_IPL_FRANCHISES);
 
 interface BidEntry {
   teamId: string;
@@ -352,8 +377,8 @@ export const useGameStore = create<GameStore>()(
       gameState: GameState.LANDING,
       selectedFormat: null,
       selectedFranchiseId: null,
-      players: prepareIpl2027Players([...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL]),
-      franchises: getIpl2027Franchises(prepareIpl2027Players([...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL]), INITIAL_FRANCHISES),
+      players: INITIAL_IPL_PLAYERS,
+      franchises: INITIAL_IPL_FRANCHISES,
       currentAuctionPlayerId: null,
       auctionHistory: [],
       bidLog: [],
@@ -361,7 +386,7 @@ export const useGameStore = create<GameStore>()(
       stateHistory: [],
 
       // Authoritative Auction initial state
-      auctionPool: [],
+      auctionPool: INITIAL_IPL_AUCTION_POOL,
       auctionPoolIndex: 0,
       auctionCurrentBid: 0,
       auctionLeadingTeamId: null,
@@ -370,7 +395,7 @@ export const useGameStore = create<GameStore>()(
       auctionTimer: 10,
       auctionIsPaused: false,
       withdrawnTeams: [],
-      playerOwnershipMap: {},
+      playerOwnershipMap: INITIAL_IPL_PLAYER_OWNERSHIP,
       arenaPlayerStates: {},
       fixtures: [],
       standings: [],
