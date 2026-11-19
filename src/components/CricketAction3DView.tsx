@@ -751,8 +751,11 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
     return saved === 'DRONE' || saved === 'ORBIT' ? saved : props.initialCameraMode || 'ORBIT';
   });
   const [motionQuality, setMotionQuality] = useState<MotionQuality>(() => {
-    return (localStorage.getItem('cricket_arena_motion_quality') as MotionQuality) || 'BALANCED';
+    return (localStorage.getItem('cricket_arena_motion_quality_v2') as MotionQuality) || 'BALANCED';
   });
+  useEffect(() => {
+    if (props.initialCameraMode) setCameraMode(props.initialCameraMode);
+  }, [props.initialCameraMode]);
   const [isDay, setIsDay] = useState<boolean>(() => {
     const saved = localStorage.getItem('cricket_arena_is_day');
     return saved !== null ? saved === 'true' : (props.initialDay ?? false);
@@ -763,6 +766,7 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
 
   const handleSetCameraMode = (mode: CameraViewMode) => {
     setCameraMode(mode);
+    props.onCameraModeChange?.(mode);
     try {
       localStorage.setItem('cricket_arena_camera_mode', mode);
     } catch {
@@ -773,7 +777,7 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
   const handleSetMotionQuality = (quality: MotionQuality) => {
     setMotionQuality(quality);
     try {
-      localStorage.setItem('cricket_arena_motion_quality', quality);
+      localStorage.setItem('cricket_arena_motion_quality_v2', quality);
     } catch {
       // ignore
     }
