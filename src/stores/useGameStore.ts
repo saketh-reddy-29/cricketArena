@@ -42,7 +42,7 @@ import { getBidIncrement, getMaxAllowableBid } from '../lib/iplAuctionEngine';
 // Pre-flight cleanup: if localStorage contains bloated old store payload, strip heavy keys immediately
 try {
   if (typeof window !== 'undefined' && window.localStorage) {
-    const existing = window.localStorage.getItem('cricket-arena-v3');
+    const existing = window.localStorage.getItem('cricket-arena-v4');
     if (existing && existing.length > 300000) {
       try {
         const parsed = JSON.parse(existing);
@@ -2075,7 +2075,7 @@ export const useGameStore = create<GameStore>()(
       },
     }),
     {
-      name: 'cricket-arena-v3',
+      name: 'cricket-arena-v4',
       partialize: (state) => ({
         authUser: state.authUser,
         lastCloudSaveTime: state.lastCloudSaveTime,
