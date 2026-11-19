@@ -1,5 +1,6 @@
 import { Player } from '../types/common';
 import { Franchise } from '../stores/useGameStore';
+import { getIpl2027MarketData } from '../data/ipl2027';
 
 /**
  * IPL Auction Raise Engine & Bid Increments
@@ -89,10 +90,19 @@ export function calculateAIMaxWillingToPay(
   totalPool = 100
 ): number {
   const rating = player.rating || (player as any).baseAbility || 75;
-  const baseValuation = calculateAIBaseValuation(rating);
+  const market = getIpl2027MarketData(player.name);
+  const ratingValuation = calculateAIBaseValuation(rating);
+  // Prior winning bids and the player's last IPL salary are market anchors,
+  // not guaranteed 2027 prices. The AI blends them with its squad-fit model.
+  const priorBidAnchor = market.lastWinningBid ? market.lastWinningBid * 0.68 : 0;
+  const salaryAnchor = market.lastSalary ? market.lastSalary * 0.72 : 0;
+  const baseValuation = Math.max(ratingValuation, priorBidAnchor, salaryAnchor);
   const variance = getPseudoVariance(player.id, franchise.id);
 
   let valuation = baseValuation * variance;
+  const season = market.season2026;
+  if (season?.runs && season.runs >= 700) valuation *= 1.16;
+  if (season?.wickets && season.wickets >= 25) valuation *= 1.18;
 
   // Role need analysis
   const squadPlayers = franchise.squad
