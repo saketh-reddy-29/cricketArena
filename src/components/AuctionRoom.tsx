@@ -299,12 +299,13 @@ export default function AuctionRoom() {
                   IPL 2027 PLAYER AUCTION
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-bold">
-                  {auctionRound === 1 ? 'MAIN ROUND' : 'ACCELERATED ROUND'}
+                  {auctionRound === 1 ? 'PLAYER AUCTION' : 'ACCELERATED ROUND'}
                 </span>
               </div>
               <h1 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
                 Auction Control Centre
               </h1>
+              <p className="mt-1 text-[10px] text-slate-400">Published 2027 release list · {totalPlayersInPool} players currently in this game pool. Final registered auction list may be updated before the real-world auction.</p>
             </div>
           </div>
 
@@ -590,13 +591,17 @@ export default function AuctionRoom() {
 
                   {marketData && (marketData.lastSalary || marketData.lastWinningBid || marketData.season2026) && (
                     <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2.5 space-y-1.5">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-amber-300">Verified IPL market reference</div>
+                      <div className="text-[10px] font-black uppercase tracking-wider text-amber-300">Verified 2026 IPL performance & market reference</div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-200">
                         {marketData.lastSalary ? <span>Last listed salary: <strong className="text-white">₹{(marketData.lastSalary / 10000000).toFixed(2)} Cr</strong></span> : null}
                         {marketData.lastWinningBid ? <span>2026 winning bid: <strong className="text-white">₹{(marketData.lastWinningBid / 10000000).toFixed(2)} Cr</strong></span> : null}
-                        {marketData.season2026?.runs ? <span>2026 IPL: <strong className="text-white">{marketData.season2026.runs} runs</strong>{marketData.season2026.average ? ` • Avg ${marketData.season2026.average}` : ''}</span> : null}
-                        {marketData.season2026?.wickets ? <span>2026 IPL: <strong className="text-white">{marketData.season2026.wickets} wickets</strong></span> : null}
-                        {marketData.season2026?.highScore ? <span>2026 high score: <strong className="text-white">{marketData.season2026.highScore}</strong></span> : null}
+                        {marketData.season2026?.matches ? <span>2026: <strong className="text-white">{marketData.season2026.matches} matches</strong></span> : null}
+                        {marketData.season2026?.runs !== undefined ? <span>Runs: <strong className="text-white">{marketData.season2026.runs}</strong>{marketData.season2026.average ? ` · Avg ${marketData.season2026.average}` : ''}</span> : null}
+                        {marketData.season2026?.strikeRate ? <span>SR: <strong className="text-white">{marketData.season2026.strikeRate}</strong></span> : null}
+                        {marketData.season2026?.wickets ? <span>Wickets: <strong className="text-white">{marketData.season2026.wickets}</strong></span> : null}
+                        {marketData.season2026?.bestBowling ? <span>Best: <strong className="text-white">{marketData.season2026.bestBowling}</strong></span> : null}
+                        {marketData.season2026?.highScore ? <span>High score: <strong className="text-white">{marketData.season2026.highScore}</strong></span> : null}
+                        {marketData.season2026?.fours !== undefined ? <span>4s/6s: <strong className="text-white">{marketData.season2026.fours}/{marketData.season2026.sixes}</strong></span> : null}
                       </div>
                       <div className="text-[9px] text-slate-400">Past salaries and winning bids are reference points, not official 2027 opening prices.</div>
                     </div>
