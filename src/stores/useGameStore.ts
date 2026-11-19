@@ -5,6 +5,8 @@ import { Player } from '../types/common';
 import { INITIAL_PLAYER_POOL } from '../data/players';
 import { INTL_PLAYER_POOL, INTL_TEAMS_DATA } from '../data/intlPlayers';
 import { OFFICIAL_2026_SQUADS } from '../data/officialSquads';
+import { IPL_2027_FRANCHISE_SPEND, getIpl2027AuctionPool, getIpl2027Franchises, prepareIpl2027Players } from '../data/ipl2027';
+import { calculateOverseasCount, isMegaAuctionDue, validateIplRetention, validateOneForOneTrade } from '../engine/competition/franchiseLifecycle';
 import { MatchEngine } from '../lib/matchEngine';
 import { generateIPLSchedule, generateDoubleRoundRobinSchedule } from '../lib/scheduleGenerator';
 import { ProgressionEngine, PerformanceInput } from '../engine/players/progressionEngine';
@@ -84,9 +86,10 @@ export enum GameState {
   KIT_LAB = 'kit_lab',
   WORLD_CUP = 'world_cup',
   PRACTICE = 'practice',
+  OFFSEASON = 'offseason',
 }
 
-export type ArenaTab = 'OVERVIEW' | 'MATCHES' | 'TEAMS' | 'TABLE' | 'PLAYERS' | 'PLAYER_STATS' | 'TEAM_STATS' | 'AUCTION' | 'SQUAD' | 'PLAYOFFS' | 'SERIES' | 'FIELD_SETUP';
+export type ArenaTab = 'OVERVIEW' | 'MATCHES' | 'TEAMS' | 'TABLE' | 'PLAYERS' | 'PLAYER_STATS' | 'TEAM_STATS' | 'AUCTION' | 'SQUAD' | 'PLAYOFFS' | 'SERIES' | 'FIELD_SETUP' | 'OFFSEASON';
 export type { ArenaFormat };
 export type TeamStrategy = 'Aggressive' | 'Balanced' | 'Value';
 
@@ -236,6 +239,8 @@ interface GameStore {
   seriesConfig: SeriesConfig | null;
   /** Active World Cup (groups + knockouts), if the player created one. */
   worldCupConfig: WorldCupConfig | null;
+  seasonNumber: number;
+  seasonYear: number;
 
   setArenaId: (arenaId: string) => void;
   setFixturePlayingXI: (fixtureId: string, team1XI: string[], team2XI: string[]) => void;
@@ -260,6 +265,9 @@ interface GameStore {
   soldPlayer: (playerId: string, franchiseId: string, price: number) => void;
   moveToUnsold: (playerId: string) => void;
   resetGame: () => void;
+  releasePlayerForOffseason: (playerId: string) => { ok: boolean; reason?: string };
+  tradePlayerForOffseason: (otherTeamId: string, ownPlayerId: string, otherPlayerId: string) => { ok: boolean; reason?: string };
+  startNextSeason: (retainedPlayerIds?: string[]) => { ok: boolean; reason?: string; megaAuction?: boolean };
   simulateFullAuction: (playerPool: Player[]) => void;
   saveLiveMatchState: (state: Record<string, any> | null) => void;
   // Match Recovery & Checkpoint Actions
@@ -344,8 +352,8 @@ export const useGameStore = create<GameStore>()(
       gameState: GameState.LANDING,
       selectedFormat: null,
       selectedFranchiseId: null,
-      players: [...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL],
-      franchises: INITIAL_FRANCHISES,
+      players: prepareIpl2027Players([...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL]),
+      franchises: getIpl2027Franchises(prepareIpl2027Players([...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL]), INITIAL_FRANCHISES),
       currentAuctionPlayerId: null,
       auctionHistory: [],
       bidLog: [],
@@ -382,6 +390,8 @@ export const useGameStore = create<GameStore>()(
       viewedPlayerId: null,
       seriesConfig: null,
       worldCupConfig: null,
+      seasonNumber: 1,
+      seasonYear: 2027,
 
       // Google Auth & Cloud Save initial state
       authUser: null,
@@ -626,12 +636,11 @@ export const useGameStore = create<GameStore>()(
       // Authoritative Auction Engine Implementations
       initAuction: (format) => set((state) => {
         // If already initialized and not completed, preserve current state
-        if (state.auctionPool && state.auctionPool.length > 0 && state.auctionPhase !== 'completed') {
-          return state;
-        }
-
+        if (state.auctionPool.length > 0 && state.auctionPhase !== 'idle' && state.auctionPhase !== 'completed') return state;
         const assignedIds = new Set(state.franchises.flatMap((f) => f.squad));
-        const availablePlayers = state.players.filter((p) => !assignedIds.has(p.id));
+        const availablePlayers = (format || state.selectedFormat) === 'IPL' && state.auctionPool.length > 0
+          ? state.players.filter((player) => state.auctionPool.includes(player.id) && !assignedIds.has(player.id))
+          : state.players.filter((p) => !assignedIds.has(p.id));
 
         // Fisher-Yates shuffle
         const shuffled = [...availablePlayers];
@@ -959,12 +968,35 @@ export const useGameStore = create<GameStore>()(
         });
       },
 
-      resetGame: () => set({
+      resetGame: () => {
+        const players = prepareIpl2027Players([...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL]);
+        const franchises = getIpl2027Franchises(players, INITIAL_FRANCHISES);
+        const playerOwnershipMap: Record<string, PlayerOwnershipRecord> = {};
+        franchises.forEach((team) => {
+          const committed = (IPL_2027_FRANCHISE_SPEND[team.shortName]?.spentCr || 0) * 10_000_000;
+          const roster = team.squad.map((id) => players.find((player) => player.id === id)).filter((player): player is Player => Boolean(player));
+          const weight = roster.reduce((sum, player) => sum + Math.max(1, player.rating || 50), 0);
+          roster.forEach((player) => {
+            playerOwnershipMap[player.id] = { status: 'RETAINED', teamId: team.id, price: weight ? Math.round(committed * Math.max(1, player.rating || 50) / weight) : 0, timestamp: Date.now() };
+          });
+        });
+        set({
         gameState: GameState.LANDING,
         stateHistory: [],
         selectedFranchiseId: null,
-        franchises: INITIAL_FRANCHISES,
-        players: [...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL],
+        franchises,
+        players,
+        auctionPool: getIpl2027AuctionPool(players),
+        auctionPoolIndex: 0,
+        auctionCurrentBid: 0,
+        auctionLeadingTeamId: null,
+        auctionPhase: 'idle',
+        auctionRound: 1,
+        auctionHistory: [],
+        unsoldPlayerIds: [],
+        playerOwnershipMap,
+        seasonNumber: 1,
+        seasonYear: 2027,
         auctionHistory: [],
         bidLog: [],
         unsoldPlayerIds: [],
@@ -984,7 +1016,132 @@ export const useGameStore = create<GameStore>()(
         worldCupConfig: null,
         activeTab: 'OVERVIEW',
         viewedPlayerId: null,
-      }),
+        });
+      },
+
+      releasePlayerForOffseason: (playerId) => {
+        const state = get();
+        const teamId = state.selectedFranchiseId;
+        if (!teamId) return { ok: false, reason: 'Select your franchise first.' };
+        const done = state.fixtures.length > 0 && state.fixtures.every((fixture) =>
+          fixture.finalized || fixture.status === MatchStatus.COMPLETED || fixture.status === MatchStatus.ABANDONED ||
+          fixture.fixtureStatus === 'COMPLETED' || fixture.fixtureStatus === 'ABANDONED');
+        if (!done) return { ok: false, reason: 'Finish the current season before releasing a player.' };
+        const team = state.franchises.find((entry) => entry.id === teamId);
+        if (!team?.squad.includes(playerId)) return { ok: false, reason: 'That player is not in your squad.' };
+        const player = state.players.find((entry) => entry.id === playerId);
+        set((current) => ({
+          franchises: current.franchises.map((entry) => entry.id !== teamId ? entry : {
+            ...entry, squad: entry.squad.filter((id) => id !== playerId),
+            overseasCount: Math.max(0, entry.overseasCount - (player?.nationality === 'Overseas' ? 1 : 0)),
+          }),
+          auctionPool: Array.from(new Set([...current.auctionPool, playerId])),
+          playerOwnershipMap: { ...current.playerOwnershipMap, [playerId]: { status: 'AVAILABLE' } },
+        }));
+        return { ok: true };
+      },
+
+      tradePlayerForOffseason: (otherTeamId, ownPlayerId, otherPlayerId) => {
+        const state = get();
+        const ownTeamId = state.selectedFranchiseId;
+        if (!ownTeamId || ownTeamId === otherTeamId) return { ok: false, reason: 'Choose another franchise to trade with.' };
+        const done = state.fixtures.length > 0 && state.fixtures.every((fixture) =>
+          fixture.finalized || fixture.status === MatchStatus.COMPLETED || fixture.status === MatchStatus.ABANDONED ||
+          fixture.fixtureStatus === 'COMPLETED' || fixture.fixtureStatus === 'ABANDONED');
+        if (!done) return { ok: false, reason: 'Trades open after the current season is complete.' };
+        const ownTeam = state.franchises.find((team) => team.id === ownTeamId);
+        const otherTeam = state.franchises.find((team) => team.id === otherTeamId);
+        if (!ownTeam || !otherTeam) return { ok: false, reason: 'Franchise not found.' };
+        const validation = validateOneForOneTrade(ownTeam.squad, ownPlayerId, otherTeam.squad, otherPlayerId);
+        if (!validation.ok) return validation;
+        const outgoing = state.players.find((player) => player.id === ownPlayerId);
+        const incoming = state.players.find((player) => player.id === otherPlayerId);
+        if (!outgoing || !incoming) return { ok: false, reason: 'One of the selected players is unavailable.' };
+        set((current) => ({
+          franchises: current.franchises.map((team) => {
+            if (team.id === ownTeamId) {
+              const squad = team.squad.map((id) => id === ownPlayerId ? otherPlayerId : id);
+              return { ...team, squad, overseasCount: calculateOverseasCount(squad, current.players) };
+            }
+            if (team.id === otherTeamId) {
+              const squad = team.squad.map((id) => id === otherPlayerId ? ownPlayerId : id);
+              return { ...team, squad, overseasCount: calculateOverseasCount(squad, current.players) };
+            }
+            return team;
+          }),
+          playerOwnershipMap: {
+            ...current.playerOwnershipMap,
+            [ownPlayerId]: { ...current.playerOwnershipMap[ownPlayerId], status: 'RETAINED', teamId: otherTeamId },
+            [otherPlayerId]: { ...current.playerOwnershipMap[otherPlayerId], status: 'RETAINED', teamId: ownTeamId },
+          },
+        }));
+        return { ok: true };
+      },
+
+      startNextSeason: (retainedPlayerIds) => {
+        const state = get();
+        if (state.selectedFormat !== 'IPL') return { ok: false, reason: 'Season rollover is only available in IPL franchise mode.' };
+        const done = state.fixtures.length > 0 && state.fixtures.every((fixture) =>
+          fixture.finalized || fixture.status === MatchStatus.COMPLETED || fixture.status === MatchStatus.ABANDONED ||
+          fixture.fixtureStatus === 'COMPLETED' || fixture.fixtureStatus === 'ABANDONED');
+        if (!done) return { ok: false, reason: 'Complete every fixture, including playoffs, before starting the next season.' };
+
+        const megaAuction = isMegaAuctionDue(state.seasonNumber);
+        let franchises = state.franchises.map((team) => ({ ...team }));
+        const ownershipMap = { ...state.playerOwnershipMap };
+        let auctionPool = state.auctionPool.filter((id) => !state.franchises.some((team) => team.squad.includes(id)));
+
+        if (megaAuction) {
+          const userTeamId = state.selectedFranchiseId;
+          const nextSquads = new Map<string, string[]>();
+          for (const team of franchises) {
+            const ordered = team.squad
+              .map((id) => state.players.find((player) => player.id === id))
+              .filter((player): player is Player => Boolean(player))
+              .sort((a, b) => (b.rating || 0) - (a.rating || 0));
+            let retained: string[];
+            if (team.id === userTeamId && retainedPlayerIds) {
+              const validation = validateIplRetention(state.players, retainedPlayerIds);
+              if (!validation.ok) return { ok: false, reason: validation.reason };
+              if (retainedPlayerIds.some((id) => !team.squad.includes(id))) return { ok: false, reason: 'Choose retained players only from your current squad.' };
+              retained = [...retainedPlayerIds];
+            } else {
+              const capped = ordered.filter((player) => player.isCapped !== false).slice(0, 5).map((player) => player.id);
+              const uncapped = ordered.filter((player) => player.isCapped === false).slice(0, 2).map((player) => player.id);
+              retained = [...capped, ...uncapped].slice(0, 6);
+            }
+            team.squad.filter((id) => !retained.includes(id)).forEach((id) => {
+              auctionPool.push(id);
+              ownershipMap[id] = { status: 'AVAILABLE' };
+            });
+            nextSquads.set(team.id, retained);
+            retained.forEach((id) => {
+              ownershipMap[id] = { ...(ownershipMap[id] || {}), status: 'RETAINED', teamId: team.id };
+            });
+          }
+          franchises = franchises.map((team) => {
+            const squad = nextSquads.get(team.id) || [];
+            return { ...team, squad, overseasCount: calculateOverseasCount(squad, state.players) };
+          });
+        }
+
+        auctionPool = Array.from(new Set(auctionPool)).filter((id) => !franchises.some((team) => team.squad.includes(id)));
+        const salaryCap = 1_300_000_000;
+        franchises = franchises.map((team) => {
+          const committed = team.squad.reduce((sum, id) => sum + (ownershipMap[id]?.price || state.players.find((player) => player.id === id)?.basePrice || 0), 0);
+          return { ...team, purse: Math.max(0, salaryCap - committed) };
+        });
+        set({
+          franchises, auctionPool, auctionPoolIndex: 0, auctionCurrentBid: 0, auctionLeadingTeamId: null,
+          currentAuctionPlayerId: null, auctionPhase: 'idle', auctionRound: 1, auctionTimer: 10, auctionIsPaused: false,
+          withdrawnTeams: [], unsoldPlayerIds: [], bidLog: [], playerSeasonStats: {}, fixtures: [], standings: [],
+          selectedSquadIds: [], playingXIIds: [], playerFatigue: {}, fixturePlayingXIs: {}, currentMatchId: null,
+          currentMatchToss: null, liveMatchState: null, activeMatchCheckpoint: null, matchRecoveryStatus: 'IDLE',
+          lastMatchSaveTime: null, seasonNumber: state.seasonNumber + 1, seasonYear: state.seasonYear + 1,
+          activeTab: auctionPool.length ? 'AUCTION' : 'OVERVIEW',
+        });
+        return { ok: true, megaAuction };
+      },
 
       generatePlayoffFixtures: () => set((state) => {
         const { fixtures } = state;
@@ -1034,7 +1191,22 @@ export const useGameStore = create<GameStore>()(
       }),
 
       initializeIPLFranchises: () => set((state) => {
-        return { franchises: INITIAL_FRANCHISES };
+        const players = prepareIpl2027Players([...INITIAL_PLAYER_POOL, ...INTL_PLAYER_POOL]);
+        const franchises = getIpl2027Franchises(players, INITIAL_FRANCHISES);
+        const playerOwnershipMap: Record<string, PlayerOwnershipRecord> = {};
+        franchises.forEach((team) => {
+          const committed = (IPL_2027_FRANCHISE_SPEND[team.shortName]?.spentCr || 0) * 10_000_000;
+          const roster = team.squad.map((id) => players.find((player) => player.id === id)).filter((player): player is Player => Boolean(player));
+          const weight = roster.reduce((sum, player) => sum + Math.max(1, player.rating || 50), 0);
+          roster.forEach((player) => {
+            playerOwnershipMap[player.id] = { status: 'RETAINED', teamId: team.id, price: weight ? Math.round(committed * Math.max(1, player.rating || 50) / weight) : 0, timestamp: Date.now() };
+          });
+        });
+        return {
+          players, franchises, auctionPool: getIpl2027AuctionPool(players), auctionPoolIndex: 0,
+          auctionPhase: 'idle', auctionRound: 1, auctionHistory: [], unsoldPlayerIds: [], playerOwnershipMap,
+          seasonNumber: 1, seasonYear: 2027,
+        };
       }),
 
       generateSeasonFixtures: () => set((state) => {
@@ -1924,6 +2096,8 @@ export const useGameStore = create<GameStore>()(
         activeTab: state.activeTab,
         seriesConfig: state.seriesConfig,
         worldCupConfig: state.worldCupConfig,
+        seasonNumber: state.seasonNumber,
+        seasonYear: state.seasonYear,
         // Persist the in-progress ball-by-ball state so a mid-match refresh
         // resumes exactly where it left off (spec: persistence & recovery).
         liveMatchState: state.liveMatchState,
