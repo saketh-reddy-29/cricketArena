@@ -8,6 +8,7 @@ import LeaderboardTab from './league/LeaderboardTab';
 import QualificationTab from './league/QualificationTab';
 import SquadPlanner from './SquadPlanner';
 import AuctionRoom from './AuctionRoom';
+import FranchiseOffseason from './FranchiseOffseason';
 import PlayerStatsView from './stats/PlayerStatsView';
 import TeamStatsView from './stats/TeamStatsView';
 import TopMatchesCarousel from './TopMatchesCarousel';
@@ -25,6 +26,7 @@ export default function ArenaHub() {
     franchises,
     selectedFranchiseId,
     liveMatchState,
+    seasonYear,
   } = useGameStore();
 
   const team = franchises.find(f => f.id === selectedFranchiseId);
@@ -61,6 +63,7 @@ export default function ArenaHub() {
       tabs.push({ id: 'MATCHES', label: 'MATCHES' });
       tabs.push({ id: 'TABLE', label: 'TABLE' });
       tabs.push({ id: 'PLAYOFFS', label: 'PLAYOFFS' });
+      tabs.push({ id: 'OFFSEASON', label: 'OFF-SEASON' });
     } else if (isTest) {
       tabs.push({ id: 'SERIES', label: 'SERIES' });
       tabs.push({ id: 'SQUAD', label: 'SQUAD' });
@@ -98,6 +101,8 @@ export default function ArenaHub() {
         return <SquadPlanner />;
       case 'AUCTION':
         return <AuctionRoom />;
+      case 'OFFSEASON':
+        return <FranchiseOffseason />;
       case 'MATCHES':
         return (
           <div className="p-4 sm:p-6 max-w-6xl mx-auto">
@@ -163,7 +168,7 @@ export default function ArenaHub() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-black uppercase tracking-wider text-[#258BFF] bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded">
-                    {selectedFormat} 2026
+                    {selectedFormat} {seasonYear}
                   </span>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">LIVE ARENA</span>
