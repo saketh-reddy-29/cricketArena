@@ -16,7 +16,7 @@ export default function PerformanceGovernor({ targetFPS = 30 }: PerformanceGover
   const invalidate = useThree((state) => state.invalidate);
 
   useEffect(() => {
-    const frameInterval = Math.max(1000 / 60, 1000 / Math.max(1, targetFPS));
+    const frameInterval = Math.max(1, 1000 / Math.max(1, targetFPS));
     invalidate();
     const timer = window.setInterval(() => invalidate(), frameInterval);
     return () => window.clearInterval(timer);
