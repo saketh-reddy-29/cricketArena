@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Pause, Play, FastForward, Star, Gavel, Users, Trophy, TrendingUp,
   Shield, Globe, Award, DollarSign, Clock, CheckCircle2, XCircle, ArrowRight,
-  Flame, Sparkles, ChevronRight, BarChart3, AlertCircle
+  Flame, Sparkles, ChevronRight, BarChart3, AlertCircle, Search
 } from 'lucide-react';
 import { useGameStore, GameState, Franchise, PlayerOwnershipStatus } from '../stores/useGameStore';
 import confetti from 'canvas-confetti';
@@ -50,6 +50,7 @@ export default function AuctionRoom() {
     bidLog,
     initAuction,
     nominatePlayer,
+    prioritizeAuctionPlayer,
     placeAuctionBid,
     finalizePlayerSale,
     advanceAuctionNextPlayer,
@@ -62,9 +63,13 @@ export default function AuctionRoom() {
     setViewedPlayer,
   } = useGameStore();
 
-  const [sidebarTab, setSidebarTab] = useState<'live' | 'squads' | 'sold' | 'unsold'>('live');
+  const [sidebarTab, setSidebarTab] = useState<'live' | 'pool' | 'sold' | 'unsold'>('live');
   const [selectedSquadTeamId, setSelectedSquadTeamId] = useState<string>(selectedFranchiseId || '1');
   const [bidError, setBidError] = useState<string | null>(null);
+  const [poolSearch, setPoolSearch] = useState('');
+  const [poolRoleFilter, setPoolRoleFilter] = useState('All');
+  const [poolNationalityFilter, setPoolNationalityFilter] = useState('All');
+  const [poolNotice, setPoolNotice] = useState<string | null>(null);
 
   const franchiseAIStates = useRef<Map<string, FranchiseAIState>>(new Map());
 
@@ -105,6 +110,22 @@ export default function AuctionRoom() {
   // Auction progression calculations
   const totalPlayersInPool = auctionPool.length;
   const remainingPlayersCount = Math.max(0, totalPlayersInPool - auctionPoolIndex - 1);
+  const nextPlayerId = auctionPool[auctionPoolIndex + 1] || null;
+  const upcomingPoolPlayers = useMemo(() => {
+    const search = poolSearch.trim().toLowerCase();
+    return auctionPool
+      .slice(auctionPoolIndex + 1)
+      .map((id) => players.find((player) => player.id === id))
+      .filter((player): player is Player => Boolean(player))
+      .filter((player) => {
+        const status = playerOwnershipMap[player.id]?.status;
+        if (status === 'SOLD' || status === 'RETAINED' || status === 'CURRENTLY_NOMINATED') return false;
+        if (search && !player.name.toLowerCase().includes(search)) return false;
+        if (poolRoleFilter !== 'All' && player.role !== poolRoleFilter) return false;
+        if (poolNationalityFilter !== 'All' && player.nationality !== poolNationalityFilter) return false;
+        return true;
+      });
+  }, [auctionPool, auctionPoolIndex, players, playerOwnershipMap, poolSearch, poolRoleFilter, poolNationalityFilter]);
   const soldPlayersCount = auctionHistory.filter(h => h.soldTo !== 'UNSOLD').length;
   const unsoldPlayersCount = auctionHistory.filter(h => h.soldTo === 'UNSOLD').length;
 
@@ -843,6 +864,15 @@ export default function AuctionRoom() {
                 Franchises ({franchises.length})
               </button>
               <button
+                onClick={() => setSidebarTab('pool')}
+                className={cn(
+                  "flex-1 py-1.5 rounded-lg font-bold transition-all",
+                  sidebarTab === 'pool' ? "bg-[#10233D] text-[#F5B82E] shadow-sm" : "text-[#9DAEC4] hover:text-white"
+                )}
+              >
+                Pool ({remainingPlayersCount})
+              </button>
+              <button
                 onClick={() => setSidebarTab('sold')}
                 className={cn(
                   "flex-1 py-1.5 rounded-lg font-bold transition-all",
@@ -918,6 +948,114 @@ export default function AuctionRoom() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Searchable player pool and next-nomination selector */}
+            {sidebarTab === 'pool' && (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-blue-400/20 bg-blue-500/5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-blue-200">Upcoming auction selections</div>
+                    <span className="text-[10px] font-black text-white">{remainingPlayersCount} LEFT</span>
+                  </div>
+                  <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                    Search the remaining shortlist and set any available player as the next nomination. The player currently on the block will finish first.
+                  </p>
+                  {poolNotice && <div className="mt-2 rounded-lg bg-emerald-500/10 px-2.5 py-2 text-[10px] font-bold text-emerald-300">{poolNotice}</div>}
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                  <input
+                    value={poolSearch}
+                    onChange={(event) => setPoolSearch(event.target.value)}
+                    placeholder="Search the player pool..."
+                    className="w-full rounded-xl border border-white/10 bg-[#071426] py-2.5 pl-9 pr-3 text-xs text-white outline-none placeholder:text-slate-500 focus:border-blue-400/50"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={poolRoleFilter}
+                    onChange={(event) => setPoolRoleFilter(event.target.value)}
+                    className="min-w-0 rounded-lg border border-white/10 bg-[#071426] px-2 py-2 text-[10px] font-bold text-slate-200 outline-none"
+                  >
+                    <option value="All">All roles</option>
+                    <option value="Batsman">Batsmen</option>
+                    <option value="Bowler">Bowlers</option>
+                    <option value="All-rounder">All-rounders</option>
+                    <option value="Wicketkeeper">Wicketkeepers</option>
+                  </select>
+                  <select
+                    value={poolNationalityFilter}
+                    onChange={(event) => setPoolNationalityFilter(event.target.value)}
+                    className="min-w-0 rounded-lg border border-white/10 bg-[#071426] px-2 py-2 text-[10px] font-bold text-slate-200 outline-none"
+                  >
+                    <option value="All">All nationalities</option>
+                    <option value="Indian">Indian</option>
+                    <option value="Overseas">Overseas</option>
+                  </select>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>{upcomingPoolPlayers.length} matching players</span>
+                  <span>Next: {players.find((player) => player.id === nextPlayerId)?.name || 'Not set'}</span>
+                </div>
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                  {upcomingPoolPlayers.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-slate-400">
+                      No matching players in the remaining auction pool. Clear the search or filters to see more.
+                    </div>
+                  ) : upcomingPoolPlayers.map((player) => {
+                    const isNext = player.id === nextPlayerId;
+                    return (
+                      <div key={player.id} className={cn(
+                        "flex items-center gap-2.5 rounded-xl border p-2.5",
+                        isNext ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/5 bg-[#071426]/70"
+                      )}>
+                        <button
+                          type="button"
+                          onClick={() => setViewedPlayer(player.id)}
+                          className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5"
+                          title="View player profile"
+                        >
+                          <img
+                            src={getPlayerImage(player)}
+                            alt={player.name}
+                            onError={(event) => handlePlayerImageError(event, player.name)}
+                            className="h-full w-full object-cover object-top"
+                          />
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[11px] font-black text-white">{player.name}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px] text-slate-400">
+                            <span>{player.role}</span>
+                            <span>·</span>
+                            <span>{player.nationality}</span>
+                            <span>·</span>
+                            <span>Rating {player.rating}</span>
+                          </div>
+                          <div className="mt-0.5 text-[9px] font-bold text-amber-300">Base ₹{((player.basePrice || 2000000) / 10000000).toFixed(2)} Cr</div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isNext || auctionPhase === 'completed' || auctionPhase === 'idle'}
+                          onClick={() => {
+                            const moved = prioritizeAuctionPlayer(player.id);
+                            setPoolNotice(moved ? `${player.name} is set as the next nomination.` : 'This player is already at the next slot.');
+                          }}
+                          className={cn(
+                            "shrink-0 rounded-lg px-2.5 py-2 text-[9px] font-black uppercase tracking-wide transition-colors",
+                            isNext
+                              ? "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
+                              : "border border-blue-400/30 bg-blue-500/15 text-blue-200 hover:bg-blue-500/25",
+                            (auctionPhase === 'completed' || auctionPhase === 'idle') && "cursor-not-allowed opacity-40"
+                          )}
+                        >
+                          {isNext ? 'NEXT UP' : 'SET NEXT'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
