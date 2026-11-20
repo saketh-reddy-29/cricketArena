@@ -114,6 +114,26 @@ export const IPL_2027_RELEASED_PLAYERS: Array<{ name: string; lastSalaryLakh: nu
   { name: 'Travis Head', lastSalaryLakh: 1400, overseas: true },
 ];
 
+/**
+ * Provisional carry-forward candidates from the previous IPL squad database.
+ * They are included to build a 350-player game shortlist; they are NOT presented
+ * as confirmed 2027 registrations. Replace this provisional extension when the
+ * official registered-player list is released.
+ */
+const IPL_2027_EXTRA_SHORTLIST_CANDIDATES: Array<{ name: string; overseas: boolean }> = [
+  { name: 'Raj Bawa', overseas: false },
+  { name: 'Tanay Thyagarajan', overseas: false },
+  { name: 'Luvnith Sisodia', overseas: false },
+  { name: 'Chetan Sakariya', overseas: false },
+  { name: 'Karn Sharma', overseas: false },
+  { name: 'Mayank Dagar', overseas: false },
+  { name: 'Tim Robinson', overseas: true },
+];
+
+export const IPL_2027_SHORTLIST_MIN_PLAYERS = 350;
+export const IPL_2027_SHORTLIST_MAX_PLAYERS = 369;
+export const IPL_2027_SHORTLIST_TARGET = 360;
+
 /** Real TATA IPL 2026 winning bids, in crore rupees; reference only, not 2027 bids. */
 export const IPL_2026_TOP_AUCTION_BUYS: Record<string, number> = {
   'Cameron Green': 25.2, 'Matheesha Pathirana': 18, 'Kartik Sharma': 14.2,
@@ -254,6 +274,9 @@ const PLAYER_ROLE_OVERRIDES: Record<string, Player['role']> = {
   'Atharva Ankolekar': 'All-rounder', 'Mahipal Lamror': 'All-rounder', 'Mitch Owen': 'All-rounder',
   'Pravin Dubey': 'Bowler', 'Emanjot Chahal': 'Bowler', 'Yudhvir Charak': 'All-rounder',
   'Mohammad Izhar': 'Bowler', 'AM Ghazanfar': 'Bowler',
+  'Raj Bawa': 'All-rounder', 'Tanay Thyagarajan': 'Bowler',
+  'Chetan Sakariya': 'Bowler', 'Karn Sharma': 'Bowler',
+  'Mayank Dagar': 'All-rounder', 'Tim Robinson': 'Batsman',
 };
 
 const PLAYER_ALIASES: Record<string, string> = {
@@ -284,6 +307,7 @@ const UNCAPPED_2027_GAME_CLASSIFICATION = new Set([
   'Mohd. Arshad Khan','Digvesh Rathi','Harnoor Pannu','Musheer Khan','Priyansh Arya','Suryansh Shedge',
   'Aman Rao Perala','Yash Raj Punja','Abhinandan Singh','Kanishk Chouhan','Rasikh Dar','Suyash Sharma',
   'Vicky Ostwal','Krains Fuletra','Praful Hinge','Salil Arora','Smaran Ravichandran','Shivang Kumar',
+  'Raj Bawa','Tanay Thyagarajan','Luvnith Sisodia','Chetan Sakariya','Karn Sharma','Mayank Dagar',
 ]);
 
 export function normaliseIplName(name: string): string {
@@ -327,7 +351,8 @@ export function prepareIpl2027Players(sourcePlayers: Player[]): Player[] {
     names.map((name) => ({ name, overseas: OVERSEAS_2027_RETAINED.has(name), seed: 'retained-' + team.toLowerCase() }))
   );
   const releasedNames = IPL_2027_RELEASED_PLAYERS.map((player) => ({ ...player, seed: 'released' }));
-  [...officialNames, ...releasedNames].forEach(({ name, overseas, seed }) => {
+  const extraCandidates = IPL_2027_EXTRA_SHORTLIST_CANDIDATES.map((player) => ({ ...player, seed: 'prior-squad' }));
+  [...officialNames, ...releasedNames, ...extraCandidates].forEach(({ name, overseas, seed }) => {
     const key = normaliseIplName(name);
     const existing = unique.get(key);
     const lastSalaryLakh = 'lastSalaryLakh' in (releasedNames.find((entry) => normaliseIplName(entry.name) === key) || {}) 
@@ -364,8 +389,49 @@ export function getIpl2027Franchises(players: Player[], templates: Array<{ id: s
 }
 
 export function getIpl2027AuctionPool(players: Player[]): string[] {
-  const byName = new Map(players.map((player) => [normaliseIplName(player.name), player.id]));
-  return IPL_2027_RELEASED_PLAYERS.map((entry) => byName.get(normaliseIplName(entry.name))).filter((id): id is string => Boolean(id));
+  const retainedNames = new Set(
+    Object.values(IPL_2027_RETAINED_SQUADS).flat().map(normaliseIplName)
+  );
+  const uniqueAvailable = new Map<string, Player>();
+
+  players.forEach((player) => {
+    const key = normaliseIplName(player.name);
+    if (retainedNames.has(key)) return;
+    const existing = uniqueAvailable.get(key);
+    if (!existing || playerRecordScore(player) > playerRecordScore(existing)) {
+      uniqueAvailable.set(key, player);
+    }
+  });
+
+  // Keep every officially released player at the front of the shortlist.
+  const releasedIds = Array.from(new Set(
+    IPL_2027_RELEASED_PLAYERS
+      .map((entry) => uniqueAvailable.get(normaliseIplName(entry.name))?.id)
+      .filter((id): id is string => Boolean(id))
+  ));
+  const releasedIdSet = new Set(releasedIds);
+  const additionalPlayers = Array.from(uniqueAvailable.values())
+    .filter((player) => !releasedIdSet.has(player.id))
+    .sort((a, b) => {
+      const score = (player: Player) => {
+        const market = getIpl2027MarketData(player.name);
+        const season = market.season2026;
+        return (player.rating || 50)
+          + (season?.runs || 0) / 100
+          + (season?.wickets || 0) * 1.5
+          + (season?.matches || 0) * 0.25
+          + (market.lastWinningBid || 0) / 100_000_000;
+      };
+      return score(b) - score(a) || a.name.localeCompare(b.name);
+    });
+
+  const assembled = [...releasedIds, ...additionalPlayers.map((player) => player.id)];
+  if (assembled.length > IPL_2027_SHORTLIST_MAX_PLAYERS) {
+    const additionalSlots = Math.max(0, IPL_2027_SHORTLIST_TARGET - releasedIds.length);
+    return [...releasedIds, ...additionalPlayers.slice(0, additionalSlots).map((player) => player.id)];
+  }
+
+  return assembled;
 }
 
 export function getIpl2027MarketData(name: string) {
