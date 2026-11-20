@@ -6,7 +6,7 @@ import { INITIAL_PLAYER_POOL } from '../data/players';
 import { INTL_PLAYER_POOL, INTL_TEAMS_DATA } from '../data/intlPlayers';
 import { OFFICIAL_2026_SQUADS } from '../data/officialSquads';
 import { IPL_2027_FRANCHISE_SPEND, getIpl2027AuctionPool, getIpl2027Franchises, prepareIpl2027Players } from '../data/ipl2027';
-import { calculateOverseasCount, isMegaAuctionDue, validateIplRetention, validateOneForOneTrade } from '../engine/competition/franchiseLifecycle';
+import { calculateOverseasCount, isMegaAuctionDue, prioritizeNextAuctionPlayer, validateIplRetention, validateOneForOneTrade } from '../engine/competition/franchiseLifecycle';
 import { MatchEngine } from '../lib/matchEngine';
 import { generateIPLSchedule, generateDoubleRoundRobinSchedule } from '../lib/scheduleGenerator';
 import { ProgressionEngine, PerformanceInput } from '../engine/players/progressionEngine';
@@ -304,6 +304,7 @@ interface GameStore {
   // Authoritative Auction Engine Actions
   initAuction: (format?: ArenaFormat) => void;
   nominatePlayer: (playerId?: string) => void;
+  prioritizeAuctionPlayer: (playerId: string) => boolean;
   placeAuctionBid: (teamId: string, customAmount?: number) => { ok: boolean; reason?: string };
   finalizePlayerSale: () => { outcome: 'SOLD' | 'UNSOLD'; playerId: string; teamId?: string; price?: number };
   advanceAuctionNextPlayer: () => void;
@@ -740,6 +741,22 @@ export const useGameStore = create<GameStore>()(
           },
         };
       }),
+
+      prioritizeAuctionPlayer: (playerId) => {
+        let prioritized = false;
+        set((state) => {
+          if (state.auctionPhase === 'idle' || state.auctionPhase === 'completed') return state;
+          const nextPool = prioritizeNextAuctionPlayer(
+            state.auctionPool,
+            state.auctionPoolIndex,
+            playerId,
+          );
+          if (nextPool === state.auctionPool) return state;
+          prioritized = true;
+          return { auctionPool: nextPool };
+        });
+        return prioritized;
+      },
 
       placeAuctionBid: (teamId, customAmount) => {
         const state = get();
