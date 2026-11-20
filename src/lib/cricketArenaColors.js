@@ -53,7 +53,9 @@
     const need = ['Lul', 'Lll', 'Lfoot', 'Lua', 'Lla', 'Lhand']; if (need.some(k => !by[k])) return null;
     const thighY = by.Lul.wp[1], kneeY = by.Lll.wp[1], shY = by.Lua.wp[1], shHalf = Math.abs(by.Lua.wp[0]), laX = Math.abs(by.Lla.wp[0]), handX = Math.abs(by.Lhand.wp[0]);
     return { hemY: thighY + 0.06 * (shY - thighY), pantsHem: kneeY + 0.38 * (thighY - kneeY), collarY: shY - 0.14 * (shY - thighY), collarX: 1.5 * shHalf,
-      sleeveEnd: shHalf + 0.93 * (laX - shHalf), gloveStart: laX + 0.6 * (handX - laX), ankleY: by.Lfoot.wp[1] };
+      sleeveEnd: shHalf + 0.93 * (laX - shHalf), gloveStart: laX + 0.6 * (handX - laX), ankleY: by.Lfoot.wp[1],
+      /* top of the collar zone: anything above the neck joint is neck / chin / face skin and must never be recoloured */
+      neckY: by.neck ? by.neck.wp[1] + 0.015 : Infinity };
   }
   /* zone of one vertex: rest position p=[x,y,z], group = groupOf(dominant bone) */
   function zoneOf(p, group, m) {
@@ -62,7 +64,7 @@
     if (group === 'foot') return ZONE.shoes;
     const ax = Math.abs(p[0]), y = p[1];
     if (ax > m.collarX && y > m.pantsHem) return ax >= m.gloveStart ? ZONE.gloves : ZONE.sleeves;
-    if (y >= m.hemY) return (y >= m.collarY && ax <= m.collarX) ? ZONE.collar : ZONE.jersey;
+    if (y >= m.hemY) { if (y >= m.collarY && ax <= m.collarX) return y > m.neckY ? ZONE.none : ZONE.collar; return ZONE.jersey; }
     if (y >= m.pantsHem) return ZONE.pants;
     return ZONE.legs;
   }
