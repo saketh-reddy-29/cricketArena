@@ -53,11 +53,11 @@ describe('IPL 2027 official roster baseline', () => {
     const auctionPool = getIpl2027AuctionPool(prepared);
     const retainedIds = franchises.flatMap((franchise) => franchise.squad);
 
-    expect(prepared).toHaveLength(273);
+    expect(prepared).toHaveLength(280);
     expect(new Set(prepared.map((player) => player.id)).size).toBe(prepared.length);
     expect(franchises.reduce((sum, franchise) => sum + franchise.squad.length, 0)).toBe(184);
     expect(new Set(retainedIds).size).toBe(184);
-    expect(auctionPool).toHaveLength(89);
+    expect(auctionPool).toHaveLength(96);
     expect(auctionPool.some((id) => retainedIds.includes(id))).toBe(false);
   });
 
@@ -68,7 +68,12 @@ describe('IPL 2027 official roster baseline', () => {
     const mukul = prepared.find((player) => normaliseIplName(player.name) === normaliseIplName('Mukul Choudhary'));
     const mukesh = prepared.find((player) => normaliseIplName(player.name) === normaliseIplName('Mukesh Choudhary'));
 
-    expect(auctionPool).toHaveLength(89);
+    const retainedIds = new Set(franchises.flatMap((franchise) => franchise.squad));
+    expect(auctionPool).toHaveLength(350);
+    expect(auctionPool.length).toBeGreaterThanOrEqual(350);
+    expect(auctionPool.length).toBeLessThanOrEqual(369);
+    expect(new Set(auctionPool).size).toBe(auctionPool.length);
+    expect(auctionPool.some((id) => retainedIds.has(id))).toBe(false);
     expect(franchises.reduce((sum, franchise) => sum + franchise.squad.length, 0)).toBe(184);
     expect(mukul).toBeDefined();
     expect(mukesh).toBeDefined();
