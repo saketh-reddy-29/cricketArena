@@ -13,6 +13,7 @@ import { INITIAL_PLAYER_POOL } from '../data/players';
 import { INTL_PLAYER_POOL } from '../data/intlPlayers';
 import {
   isMegaAuctionDue,
+  prioritizeNextAuctionPlayer,
   validateIplRetention,
   validateOneForOneTrade,
 } from '../engine/competition/franchiseLifecycle';
@@ -111,6 +112,17 @@ describe('franchise retention and trading rules', () => {
     expect(validateIplRetention(players, ['c1', 'c2', 'c3', 'c4', 'c5', 'c6']).ok).toBe(false);
     expect(validateIplRetention(players, ['c1', 'c2', 'c3', 'c4', 'u1', 'u2', 'u3']).ok).toBe(false);
     expect(validateIplRetention(players, ['missing']).ok).toBe(false);
+  });
+
+  it('moves a selected future player to the next nomination without skipping or duplicating others', () => {
+    const pool = ['current', 'first', 'second', 'selected', 'last'];
+    const reordered = prioritizeNextAuctionPlayer(pool, 0, 'selected');
+
+    expect(reordered).toEqual(['current', 'selected', 'first', 'second', 'last']);
+    expect(new Set(reordered).size).toBe(pool.length);
+    expect(reordered).toHaveLength(pool.length);
+    expect(prioritizeNextAuctionPlayer(reordered, 0, 'selected')).toBe(reordered);
+    expect(prioritizeNextAuctionPlayer(reordered, 2, 'first')).toBe(reordered);
   });
 
   it('only triggers a mega auction after each fourth completed season', () => {
