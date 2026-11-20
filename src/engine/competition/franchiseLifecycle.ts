@@ -41,3 +41,22 @@ export function calculateOverseasCount(squadIds: string[], players: Player[]): n
   const playerById = new Map(players.map((player) => [player.id, player]));
   return squadIds.filter((id) => playerById.get(id)?.nationality === 'Overseas').length;
 }
+
+/**
+ * Move a not-yet-nominated player into the next auction slot.
+ * The active nomination and every other candidate keep their relative order.
+ */
+export function prioritizeNextAuctionPlayer(
+  pool: string[],
+  currentIndex: number,
+  playerId: string,
+): string[] {
+  const nextIndex = currentIndex + 1;
+  const targetIndex = pool.indexOf(playerId);
+  if (targetIndex <= nextIndex || targetIndex < 0 || nextIndex >= pool.length) return pool;
+
+  const reordered = [...pool];
+  const [selectedId] = reordered.splice(targetIndex, 1);
+  reordered.splice(nextIndex, 0, selectedId);
+  return reordered;
+}
