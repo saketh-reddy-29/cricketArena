@@ -46,18 +46,18 @@ describe('IPL 2027 official roster baseline', () => {
     expect(IPL_2027_RELEASED_PLAYERS.some((player) => retained.has(normaliseIplName(player.name)))).toBe(false);
   });
 
-  it('maps each retained name to one unique player and exposes the 89 released players only', () => {
+  it('builds a deduplicated provisional shortlist from the official baseline and extra candidates', () => {
     // Empty input intentionally exercises the fallback path for every published name.
     const prepared = prepareIpl2027Players([]);
     const franchises = getIpl2027Franchises(prepared, templates as any);
     const auctionPool = getIpl2027AuctionPool(prepared);
     const retainedIds = franchises.flatMap((franchise) => franchise.squad);
 
-    expect(prepared).toHaveLength(280);
+    expect(prepared).toHaveLength(293);
     expect(new Set(prepared.map((player) => player.id)).size).toBe(prepared.length);
     expect(franchises.reduce((sum, franchise) => sum + franchise.squad.length, 0)).toBe(184);
     expect(new Set(retainedIds).size).toBe(184);
-    expect(auctionPool).toHaveLength(96);
+    expect(auctionPool).toHaveLength(110);
     expect(auctionPool.some((id) => retainedIds.includes(id))).toBe(false);
   });
 
