@@ -128,6 +128,23 @@ const IPL_2027_EXTRA_SHORTLIST_CANDIDATES: Array<{ name: string; overseas: boole
   { name: 'Karn Sharma', overseas: false },
   { name: 'Mayank Dagar', overseas: false },
   { name: 'Tim Robinson', overseas: true },
+  // Prior 2026 franchise squad candidates missing from the game database.
+  { name: 'Andre Russell', overseas: true },
+  { name: 'Lalit Yadav', overseas: false },
+  { name: 'Vijaykumar Vyshak', overseas: false },
+  { name: 'Mohammad Shami', overseas: false },
+  // Historical IPL players from the wider T20 player database. Their 2027
+  // auction registration/availability is unconfirmed; these are game-only candidates.
+  { name: 'Faf du Plessis', overseas: true },
+  { name: 'David Warner', overseas: true },
+  { name: 'Jason Roy', overseas: true },
+  { name: 'Alex Hales', overseas: true },
+  { name: 'Moeen Ali', overseas: true },
+  { name: 'Shakib Al Hasan', overseas: true },
+  { name: 'Sam Billings', overseas: true },
+  { name: 'Martin Guptill', overseas: true },
+  { name: 'Kieron Pollard', overseas: true },
+  { name: 'Rilee Rossouw', overseas: true },
 ];
 
 export const IPL_2027_SHORTLIST_MIN_PLAYERS = 350;
@@ -277,6 +294,13 @@ const PLAYER_ROLE_OVERRIDES: Record<string, Player['role']> = {
   'Raj Bawa': 'All-rounder', 'Tanay Thyagarajan': 'Bowler',
   'Chetan Sakariya': 'Bowler', 'Karn Sharma': 'Bowler',
   'Mayank Dagar': 'All-rounder', 'Tim Robinson': 'Batsman',
+  'Andre Russell': 'All-rounder', 'Lalit Yadav': 'All-rounder',
+  'Vijaykumar Vyshak': 'Bowler', 'Mohammad Shami': 'Bowler',
+  'Faf du Plessis': 'Batsman', 'David Warner': 'Batsman',
+  'Jason Roy': 'Batsman', 'Alex Hales': 'Batsman',
+  'Moeen Ali': 'All-rounder', 'Shakib Al Hasan': 'All-rounder',
+  'Sam Billings': 'Wicketkeeper', 'Martin Guptill': 'Batsman',
+  'Kieron Pollard': 'All-rounder', 'Rilee Rossouw': 'Batsman',
 };
 
 const PLAYER_ALIASES: Record<string, string> = {
@@ -308,6 +332,7 @@ const UNCAPPED_2027_GAME_CLASSIFICATION = new Set([
   'Aman Rao Perala','Yash Raj Punja','Abhinandan Singh','Kanishk Chouhan','Rasikh Dar','Suyash Sharma',
   'Vicky Ostwal','Krains Fuletra','Praful Hinge','Salil Arora','Smaran Ravichandran','Shivang Kumar',
   'Raj Bawa','Tanay Thyagarajan','Luvnith Sisodia','Chetan Sakariya','Karn Sharma','Mayank Dagar',
+  'Vijaykumar Vyshak',
 ]);
 
 export function normaliseIplName(name: string): string {
