@@ -4,6 +4,7 @@ import { OrbitControls, useGLTF } from '@react-three/drei';
 import { CharacterInstance } from '../characters/CharacterInstance';
 import { heightCmFor, heightScale } from '../characters/playerAppearance';
 import { jerseyNameFor, jerseyNumberFor } from '../characters/teamKits';
+import PerformanceGovernor from '../3d/PerformanceGovernor';
 import { Player } from '../types/common';
 
 const LIGHT_MODEL = '/models/cricket-arena/cartoon_character_3d_model.glb';
@@ -38,10 +39,12 @@ export default function AuctionPlayer3DStage({
   return (
     <div className="absolute inset-0 overflow-hidden">
       <Canvas
-        dpr={[1, 1.2]}
+        frameloop="demand"
+        dpr={[0.8, 1.15]}
         camera={{ position: [0, 1.25, 4.0], fov: 32 }}
         gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
       >
+        <PerformanceGovernor targetFPS={30} />
         <color attach="background" args={['#0b1730']} />
         <hemisphereLight args={['#e4efff', '#263a58', 1.35]} />
         <ambientLight intensity={0.45} color="#ffffff" />

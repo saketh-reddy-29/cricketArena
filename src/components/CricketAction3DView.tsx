@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { Stadium, StadiumScoreboardData } from '../3d/Stadium';
 import { Lighting } from '../3d/Lighting';
 import { CameraSystem, CameraViewMode, CAMERA_LABELS } from '../3d/CameraSystem';
+import PerformanceGovernor from '../3d/PerformanceGovernor';
 import { toWorld, BOUNDARY_M, CREASE_Z, PITCH_HALF } from '../3d/worldScale';
 import { computeBatterMotion, BatterAction } from '../presentation/batterMotion';
 import { CharacterInstance, CharacterErrorBoundary } from '../characters/CharacterInstance';
@@ -76,6 +77,7 @@ export interface CricketAction3DViewProps {
   /** Match format (IPL | T20 | ODI | TEST) - decides whites vs coloured kit */
   matchFormat?: string;
   initialCameraMode?: CameraViewMode;
+  onCameraModeChange?: (mode: CameraViewMode) => void;
   initialDay?: boolean;
   /** Bowling style text of the current bowler ('Right-arm fast', 'Left-arm orthodox' ...) */
   bowlerStyle?: string;
@@ -468,7 +470,7 @@ function StadiumScene({
               isLeftHanded={isLeftHanded}
               ballPos={ball3DPos}
               showDebugSkeleton={showDebugSkeleton}
-              updateFps={motionQuality === 'ULTRA' ? 60 : motionQuality === 'BALANCED' ? 45 : 30}
+              updateFps={motionQuality === 'ULTRA' ? 60 : motionQuality === 'BALANCED' ? 30 : 24}
               trackBall
               castShadow
               smoothMotion
@@ -497,7 +499,7 @@ function StadiumScene({
               progress={localProgress}
               hasBat={true}
               showDebugSkeleton={showDebugSkeleton}
-              updateFps={motionQuality === 'ULTRA' ? 45 : motionQuality === 'BALANCED' ? 30 : 20}
+              updateFps={motionQuality === 'ULTRA' ? 45 : motionQuality === 'BALANCED' ? 24 : 18}
               trackBall
               castShadow={false}
               smoothMotion
@@ -682,10 +684,10 @@ function StadiumScene({
           : Math.atan2(strikerWorld[0] - location[0], strikerWorld[1] - location[1]);
 
         const fielderFps = isBowler || active
-          ? (motionQuality === 'ULTRA' ? 60 : 45)
+          ? (motionQuality === 'ULTRA' ? 60 : motionQuality === 'BALANCED' ? 30 : 24)
           : isKeeper
-          ? (motionQuality === 'ULTRA' ? 45 : 30)
-          : (motionQuality === 'ULTRA' ? 30 : 20);
+          ? (motionQuality === 'ULTRA' ? 45 : motionQuality === 'BALANCED' ? 24 : 18)
+          : (motionQuality === 'ULTRA' ? 30 : motionQuality === 'BALANCED' ? 20 : 15);
 
         const charProgress = isBowler
           ? (stage === 'OUTCOME'
@@ -746,11 +748,15 @@ function StadiumScene({
 
 export default function CricketAction3DView(props: CricketAction3DViewProps) {
   const [cameraMode, setCameraMode] = useState<CameraViewMode>(() => {
-    return (localStorage.getItem('cricket_arena_camera_mode') as CameraViewMode) || props.initialCameraMode || 'EA_BATTER';
+    const saved = localStorage.getItem('cricket_arena_camera_mode');
+    return saved === 'DRONE' || saved === 'ORBIT' ? saved : props.initialCameraMode || 'ORBIT';
   });
   const [motionQuality, setMotionQuality] = useState<MotionQuality>(() => {
-    return (localStorage.getItem('cricket_arena_motion_quality') as MotionQuality) || 'ULTRA';
+    return (localStorage.getItem('cricket_arena_motion_quality_v2') as MotionQuality) || 'BALANCED';
   });
+  useEffect(() => {
+    if (props.initialCameraMode) setCameraMode(props.initialCameraMode);
+  }, [props.initialCameraMode]);
   const [isDay, setIsDay] = useState<boolean>(() => {
     const saved = localStorage.getItem('cricket_arena_is_day');
     return saved !== null ? saved === 'true' : (props.initialDay ?? false);
@@ -761,6 +767,7 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
 
   const handleSetCameraMode = (mode: CameraViewMode) => {
     setCameraMode(mode);
+    props.onCameraModeChange?.(mode);
     try {
       localStorage.setItem('cricket_arena_camera_mode', mode);
     } catch {
@@ -771,7 +778,7 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
   const handleSetMotionQuality = (quality: MotionQuality) => {
     setMotionQuality(quality);
     try {
-      localStorage.setItem('cricket_arena_motion_quality', quality);
+      localStorage.setItem('cricket_arena_motion_quality_v2', quality);
     } catch {
       // ignore
     }
@@ -789,15 +796,17 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
   return (
     <div className="absolute inset-0 overflow-hidden rounded-xl bg-[#080e1e] select-none">
       <Canvas
-        shadows
-        dpr={[1, 1.25]}
+        frameloop="demand"
+        shadows={motionQuality === 'ULTRA'}
+        dpr={motionQuality === 'ULTRA' ? [1, 1.5] : motionQuality === 'BALANCED' ? [0.85, 1.15] : [0.7, 1]}
         gl={{
           antialias: false,
-          powerPreference: 'high-performance',
+          powerPreference: 'low-power',
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.15,
         }}
       >
+        <PerformanceGovernor targetFPS={motionQuality === 'ULTRA' ? 60 : motionQuality === 'BALANCED' ? 30 : 24} />
         <StadiumScene
           isDay={isDay}
           props={props}
@@ -904,13 +913,8 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
                 <div className="grid grid-cols-2 gap-2">
                   {(
                     [
-                      ['EA_BATTER', 'Behind Batter', 'Immersive batting crease view down pitch'],
-                      ['BROADCAST', 'TV Broadcast', 'Classic side-on television camera'],
-                      ['DRONE', 'Drone Aerial', 'Sweeping 360° stadium aerial view'],
-                      ['ACTION_CAM', 'Action Cam', 'Dynamic chase camera following ball'],
-                      ['BOWLER_CAM', 'Bowler Run-Up', 'Follow behind bowler delivering ball'],
-                      ['SIDE_ON', 'Side-On', 'Side crease technical analysis angle'],
-                      ['ORBIT', 'Free 3D Orbit', 'Freely rotate, zoom, and explore stadium'],
+                      ['ORBIT', 'Orbit View', 'Freely rotate, zoom and explore the full ground'],
+                      ['DRONE', 'Drone View', 'Automatic high aerial camera over the stadium'],
                     ] as const
                   ).map(([mode, name, desc]) => (
                     <button
@@ -942,8 +946,8 @@ export default function CricketAction3DView(props: CricketAction3DViewProps) {
                   {(
                     [
                       ['ULTRA', 'Ultra (60 FPS)', 'Buttery smooth IK animations & ball motion', Activity],
-                      ['BALANCED', 'Balanced (45 FPS)', 'Standard smooth pacing for laptops', Zap],
-                      ['POWER_SAVE', 'Power Save (30 FPS)', 'Reduced power consumption', Shield],
+                      ['BALANCED', 'Balanced (30 FPS)', 'Steady frame pacing for everyday laptops and phones', Zap],
+                      ['POWER_SAVE', 'Power Save (24 FPS)', 'Lower render load for older or battery-powered devices', Shield],
                     ] as const
                   ).map(([qual, name, desc, Icon]) => (
                     <button

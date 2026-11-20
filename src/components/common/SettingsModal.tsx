@@ -69,7 +69,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
     try {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('cricket-arena-v3');
+        localStorage.removeItem('cricket-arena-v4');
         window.location.reload();
       }
     } catch (e) {

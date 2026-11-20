@@ -68,24 +68,43 @@ export default function LandingPage() {
           <div className="w-full max-w-5xl">
             <MatchRecoveryBanner />
           </div>
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
+          <motion.section
+            initial={{ opacity: 0, y: -18 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-12 max-w-3xl"
+            transition={{ duration: 0.65, ease: 'easeOut' }}
+            className="relative mb-12 w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(ellipse_at_75%_10%,rgba(37,99,235,.22),transparent_42%),linear-gradient(135deg,#102746_0%,#08182d_58%,#071426_100%)] px-6 py-10 text-center shadow-2xl sm:px-12 sm:py-14"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#10233D] border border-white/10 mb-6 shadow-md">
-              <Sparkles className="w-4 h-4 text-[#F5B82E]" />
-              <span className="text-[11px] font-black text-[#F5B82E] uppercase tracking-[0.2em]">
-                AAA Management & Simulation Experience
-              </span>
+            <div className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-28 -right-10 h-72 w-72 rounded-full bg-amber-400/10 blur-3xl" />
+            <div className="relative mx-auto flex max-w-3xl flex-col items-center">
+              <motion.img
+                src="/cricket-arena-logo.svg"
+                alt="Cricket Arena crest"
+                className="mb-5 h-24 w-24 drop-shadow-[0_12px_32px_rgba(234,179,8,.2)] sm:h-28 sm:w-28"
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-300/10 px-4 py-2">
+                <Sparkles className="h-4 w-4 text-amber-300" />
+                <span className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">A new era of franchise cricket</span>
+              </div>
+              <h1 className="text-4xl font-black leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl">
+                Build a dynasty.
+                <span className="mt-2 block bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 bg-clip-text text-transparent">Ball by ball.</span>
+              </h1>
+              <p className="mt-5 max-w-2xl text-sm font-medium leading-7 text-slate-300 sm:text-base">
+                Own the auction room. Shape your playing XI. Make the calls that define a franchise — then take your team onto a living 3D cricket ground.
+              </p>
+              <div className="mt-7 flex flex-wrap items-center justify-center gap-2">
+                {['10 IPL franchises','Player auction & trades','Four-season mega auction','Orbit + Drone match views'].map((item) => (
+                  <span key={item} className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold tracking-wide text-slate-200 sm:text-xs">{item}</span>
+                ))}
+              </div>
+              <div className="mt-8 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+                Choose your format. Start your story.
+              </div>
             </div>
-            <h1 className="text-5xl sm:text-7xl font-black tracking-tight text-white mb-4">
-              CRICKET <span className="gold-gradient-text">ARENA</span>
-            </h1>
-            <p className="text-base sm:text-lg text-[#9DAEC4] font-medium leading-relaxed">
-              Build your champion squad. Manage your finances. Dominate the field with authentic ball-by-ball physics.
-            </p>
-          </motion.div>
+          </motion.section>
 
           {/* Arenas Saved List */}
           {arenas.length > 0 && (

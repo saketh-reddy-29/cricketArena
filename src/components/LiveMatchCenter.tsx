@@ -552,7 +552,7 @@ export default function LiveMatchCenter() {
   // Premium Broadcast View State
   const [showSettings, setShowSettings] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [cameraMode, setCameraMode] = useState<'BROADCAST' | 'PITCH' | 'TACTICAL' | 'SKY'>('BROADCAST');
+  const [cameraMode, setCameraMode] = useState<'ORBIT' | 'DRONE'>('ORBIT');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showCommentaryDrawer, setShowCommentaryDrawer] = useState(false);
   const [showTacticsDrawer, setShowTacticsDrawer] = useState(false);
@@ -581,19 +581,10 @@ export default function LiveMatchCenter() {
     }
   };
 
-  const cameraTransformClass = useMemo(() => {
-    switch (cameraMode) {
-      case 'PITCH':
-        return 'scale-[1.28] translate-y-[3%]';
-      case 'SKY':
-        return 'scale-[0.88]';
-      case 'TACTICAL':
-        return 'scale-[1.0]';
-      case 'BROADCAST':
-      default:
-        return 'scale-[1.03]';
-    }
-  }, [cameraMode]);
+  const cameraTransformClass = useMemo(
+    () => cameraMode === 'DRONE' ? 'scale-[0.88]' : 'scale-[1.03]',
+    [cameraMode]
+  );
 
   useEffect(() => {
     if (currentDeliveryResult) {
@@ -2348,6 +2339,8 @@ export default function LiveMatchCenter() {
                     nonStriker={nonStriker || null}
                     bowler={currentBowler || null}
                     deliveryResult={currentDeliveryResult}
+                    cameraMode={cameraMode}
+                    onCameraModeChange={setCameraMode}
                     strikerStats={striker ? inning?.batters?.[striker.id] ?? { runs: 0, balls: 0 } : null}
                     nonStrikerStats={nonStriker ? inning?.batters?.[nonStriker.id] ?? { runs: 0, balls: 0 } : null}
                     bowlerStats={currentBowler ? inning?.bowlers?.[currentBowler.id] ?? { wickets: 0, runs: 0, balls: 0 } : null}
@@ -2533,10 +2526,8 @@ export default function LiveMatchCenter() {
                     className="bg-[#14281b] text-emerald-300 text-[10px] font-black px-2 py-1 rounded-xl border border-emerald-500/30 focus:outline-none cursor-pointer"
                     title="Camera Perspective"
                   >
-                    <option value="BROADCAST">📹 Broadcast</option>
-                    <option value="PITCH">🎯 Pitch Cam</option>
-                    <option value="TACTICAL">🏏 Tactical 2D</option>
-                    <option value="SKY">🌐 Sky Cam</option>
+                    <option value="ORBIT">Orbit view</option>
+                    <option value="DRONE">Drone view</option>
                   </select>
 
                   {/* Commentary quick toggle */}

@@ -27,6 +27,7 @@ import {
   Box,
 } from 'lucide-react';
 import FieldSetupDashboard from './FieldSetupDashboard';
+import type { CameraViewMode } from '../3d/CameraSystem';
 const CricketAction3DView = React.lazy(() => import('./CricketAction3DView'));
 
 class CricketAction3DErrorBoundary extends React.Component<
@@ -127,6 +128,8 @@ export interface VisualizerProps {
   hideSideAndBottomPanels?: boolean;
   displayMode?: 'STANDARD' | 'LABELS';
   onDisplayModeChange?: (mode: 'STANDARD' | 'LABELS') => void;
+  cameraMode?: CameraViewMode;
+  onCameraModeChange?: (mode: CameraViewMode) => void;
 
   // Field preset & edit-field control (can be driven from outside the visualizer)
   fieldPresetKey?: string | null;
@@ -246,6 +249,8 @@ export default function CricketActionVisualizer({
   hideSideAndBottomPanels = false,
   displayMode: propDisplayMode,
   onDisplayModeChange,
+  cameraMode: propCameraMode,
+  onCameraModeChange: propCameraModeChange,
   fieldPresetKey: propFieldPresetKey,
   onFieldPresetChange,
   initialFieldConfiguration,
@@ -1550,6 +1555,8 @@ export default function CricketActionVisualizer({
                     battingTeamName={battingTeamName}
                     bowlingTeamName={bowlingTeamName}
                     matchFormat={initialFormat}
+                    initialCameraMode={propCameraMode || 'ORBIT'}
+                    onCameraModeChange={propCameraModeChange}
                     batterTransition={batterTransition}
                     strikerRuns={strikerStats?.runs ?? (batterState && striker && batterState.playerId === striker.id ? batterState.runsScored : undefined)}
                     strikerBalls={strikerStats?.balls ?? (batterState && striker && batterState.playerId === striker.id ? batterState.ballsFaced : undefined)}
