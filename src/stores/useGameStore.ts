@@ -2133,6 +2133,34 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'cricket-arena-v4',
+      version: 5,
+      migrate: (persistedState, _version) => {
+        const persisted = (persistedState || {}) as Partial<GameStore>;
+        const savedPlayers = Array.isArray(persisted.players) ? persisted.players : [];
+        const players = prepareIpl2027Players([...INITIAL_IPL_PLAYERS, ...savedPlayers]);
+        const franchises = Array.isArray(persisted.franchises) ? persisted.franchises : INITIAL_IPL_FRANCHISES;
+        const assignedIds = new Set(franchises.flatMap((franchise) => franchise.squad || []));
+        const auctionPool = getIpl2027AuctionPool(players).filter((id) => !assignedIds.has(id));
+
+        return {
+          ...persisted,
+          players,
+          franchises,
+          auctionPool,
+          auctionPoolIndex: 0,
+          auctionCurrentBid: 0,
+          auctionLeadingTeamId: null,
+          currentAuctionPlayerId: null,
+          auctionPhase: 'idle',
+          auctionRound: 1,
+          auctionHistory: [],
+          unsoldPlayerIds: [],
+          playerOwnershipMap: {
+            ...INITIAL_IPL_PLAYER_OWNERSHIP,
+            ...(persisted.playerOwnershipMap || {}),
+          },
+        };
+      },
       partialize: (state) => ({
         authUser: state.authUser,
         lastCloudSaveTime: state.lastCloudSaveTime,
