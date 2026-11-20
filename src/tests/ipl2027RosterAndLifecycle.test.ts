@@ -57,7 +57,7 @@ describe('IPL 2027 official roster baseline', () => {
     expect(new Set(prepared.map((player) => player.id)).size).toBe(prepared.length);
     expect(franchises.reduce((sum, franchise) => sum + franchise.squad.length, 0)).toBe(184);
     expect(new Set(retainedIds).size).toBe(184);
-    expect(auctionPool).toHaveLength(110);
+    expect(auctionPool).toHaveLength(109);
     expect(auctionPool.some((id) => retainedIds.includes(id))).toBe(false);
   });
 
